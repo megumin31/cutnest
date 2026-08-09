@@ -1,0 +1,9 @@
+node_modules/
+dist/
+*.local
+.DS_Store
+
+# 字体资产（运行时按需下载 + 缓存；本地副本不入库）
+public/fonts/*.ttf
+tests/fixtures/fonts/*.ttf
+.omo/

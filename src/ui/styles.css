@@ -1,0 +1,311 @@
+/* 全局样式 —— 布局骨架 / 卡片 / 动效（UI-DESIGN.md §5 §8 §9） */
+
+:root {
+  color-scheme: light dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', sans-serif;
+  background: var(--bg);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  transition: background 300ms ease, color 300ms ease;
+}
+
+/* 应用外壳：顶栏 / 三栏 / 状态栏 */
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.app-topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 52px;
+  padding: 0 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  z-index: 10;
+}
+
+.app-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.app-left {
+  width: 320px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+  overflow-y: auto;
+  padding: 12px;
+}
+
+.app-center {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  padding: 16px 20px;
+}
+
+.app-right {
+  width: 300px;
+  flex-shrink: 0;
+  border-left: 1px solid var(--border);
+  background: var(--surface);
+  overflow-y: auto;
+  padding: 16px;
+}
+
+.app-statusbar {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  height: 30px;
+  padding: 0 16px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+/* 折叠面板 */
+.collapse-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+
+.collapse-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  cursor: pointer;
+  user-select: none;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.collapse-card-header:hover {
+  background: var(--hover, rgba(0, 0, 0, 0.03));
+}
+
+.collapse-card-body {
+  padding: 0 14px 14px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+/* 切割图 */
+.cut-diagram {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.sheet-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+  cursor: pointer;
+  transition: box-shadow 150ms ease, transform 150ms ease;
+  animation: sheet-in 300ms ease both;
+}
+
+.sheet-card:hover {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  transform: translateY(-1px);
+}
+
+@keyframes sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.part-rect {
+  cursor: pointer;
+  transition: opacity 120ms ease;
+}
+
+.part-rect:hover {
+  filter: brightness(1.12);
+}
+
+.part-rect.dimmed {
+  opacity: 0.35;
+}
+
+.part-rect.selected {
+  stroke-width: 2.5px;
+}
+
+/* 审查表 AI 格子 —— 双通道编码：琥珀浅底 + 斜纹（UI-DESIGN.md §3.3） */
+.ai-cell {
+  background: rgba(245, 159, 0, 0.16) !important;
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(245, 159, 0, 0.14) 0 6px,
+    transparent 6px 12px
+  ) !important;
+  position: relative;
+}
+
+.ai-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  font-size: 9px;
+  line-height: 1;
+  padding: 1px 3px;
+  border-radius: 3px;
+  background: rgba(245, 159, 0, 0.9);
+  color: #fff;
+}
+
+/* 项目卡片流 */
+.project-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.project-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px;
+  cursor: pointer;
+  transition: box-shadow 150ms ease, transform 150ms ease;
+  position: relative;
+}
+
+.project-card:hover {
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+}
+
+.project-card-new {
+  border-style: dashed;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 140px;
+  color: var(--text-secondary);
+  background: transparent;
+}
+
+/* 引导卡 */
+.guide-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  height: 100%;
+  min-height: 320px;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+/* 统计数字 tabular */
+.stat-value {
+  font-variant-numeric: tabular-nums;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.stat-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/* 全屏审查模态 */
+.review-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+}
+
+.review-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.review-image {
+  width: 40%;
+  border-right: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: var(--surface);
+}
+
+.review-table {
+  width: 60%;
+  overflow-y: auto;
+  padding: 20px;
+}
+
+/* 单板大图 */
+.sheet-detail-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  z-index: 900;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 动效：prefers-reduced-motion 时全部禁用 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* 零件表：数量列数字居中（antd InputNumber 默认左对齐） */
+.num-center .ant-input-number-input {
+  text-align: center;
+}
+
+/* 零件表：名称输入框靠左（去掉 antd 输入框默认左内边距，文字贴近单元格左缘） */
+.name-input {
+  padding-left: 0;
+}
