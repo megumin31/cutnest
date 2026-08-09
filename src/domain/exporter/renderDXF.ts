@@ -111,12 +111,16 @@ export function renderDXF(
 
   // 每类零件一个图层
   const layerByPart = new Map<string, string>()
+  const usedLayerNames = new Set<string>()
   let colorIdx = 0
   const allParts: { part: ScenePart; sheetIdx: number; layer: string }[] = []
   for (const sc of scene) {
     for (const p of sc.parts) {
       if (!layerByPart.has(p.partId)) {
-        const layer = asciiLayerName(p.name, p.partId)
+        // ASCII 名已被其他零件占用时用 partId 兜底（dxf-writer 同名 addLayer 会静默覆盖）
+        const base = asciiLayerName(p.name, p.partId)
+        const layer = usedLayerNames.has(base) ? p.partId : base
+        usedLayerNames.add(layer)
         d.addLayer(layer, (colorIdx % 6) + 1, 'CONTINUOUS')
         colorIdx++
         layerByPart.set(p.partId, layer)

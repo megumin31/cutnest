@@ -31,7 +31,12 @@ export interface SceneSheet {
   utilization: number
 }
 
-export function toScene(plan: CutPlan, sheetLibrary: SheetSpec[], partNames: Map<string, string>): SceneSheet[] {
+export function toScene(
+  plan: CutPlan,
+  sheetLibrary: SheetSpec[],
+  partNames: Map<string, string>,
+  edgeBands?: Map<string, ('L' | 'R' | 'T' | 'B')[]>,
+): SceneSheet[] {
   const specById = new Map(sheetLibrary.map((s) => [s.id, s]))
   const border = plan.settings.trimAllowance
   return plan.sheets.map((layout) => {
@@ -50,7 +55,7 @@ export function toScene(plan: CutPlan, sheetLibrary: SheetSpec[], partNames: Map
         len: p.len,
         wid: p.wid,
         rotated: p.rotated,
-        edgeBand: undefined,
+        edgeBand: edgeBands?.get(p.partId),
       }
     })
     const usableArea = usableLen * usableWid

@@ -142,7 +142,7 @@ export function TopBar() {
                 setNameDraft(current.name)
                 setEditingName(true)
               }}
-              title={t('edit')}
+              title={t('common.edit')}
             >
               {current.name}
               <span style={{ color: 'var(--text-disabled)', fontSize: 12, marginLeft: 6 }}>✎</span>

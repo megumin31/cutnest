@@ -87,6 +87,7 @@ export const en = {
     addSheet: 'Add Sheet',
     editSheet: 'Edit Sheet',
     sheetName: 'Sheet name',
+    sheetDefaultName: 'New Sheet',
     sheetLength: 'Length (mm)',
     sheetWidth: 'Width (mm)',
     processParams: 'Process Parameters',

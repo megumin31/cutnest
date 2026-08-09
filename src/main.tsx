@@ -22,7 +22,7 @@ async function seedDemoProject() {
   if (seeded) return
   const existing = await storage.listProjects()
   if (existing.length > 0) return
-  const demo = createProject('示例 · 客厅柜')
+  const demo = await createProject('示例 · 客厅柜')
   demo.parts = [
     { id: 'p1', name: '侧板', length: 2440, width: 400, quantity: 4, grain: 'alongLength', edgeBand: ['L', 'R'] },
     { id: 'p2', name: '横档', length: 2440, width: 250, quantity: 2, grain: 'alongLength' },

@@ -23,6 +23,8 @@ interface PlanState {
   /** 编辑态/结果态切换（结果态可一键回到零件工作区） */
   editMode: boolean
   task: OptimizeTask | null
+  /** 任务序号：run/cancel/reset 自增；回调按序号丢弃过期任务（防旧任务 CANCELLED 覆盖新任务状态） */
+  runSeq: number
   /** 发起计算（Web Worker 线程内执行，主线程不卡） */
   run: (project: Project) => void
   cancel: () => void
@@ -53,9 +55,11 @@ export const usePlanStore = create<PlanState>((set, get) => ({
   hoverPartKey: null,
   editMode: false,
   task: null,
+  runSeq: 0,
 
   run(project) {
     get().task?.cancel()
+    const seq = get().runSeq + 1
     set({
       status: 'running',
       progress: 0,
@@ -65,6 +69,7 @@ export const usePlanStore = create<PlanState>((set, get) => ({
       selectedPartKey: null,
       hoverPartKey: null,
       editMode: false,
+      runSeq: seq,
     })
     const task = runOptimize(
       {
@@ -74,12 +79,17 @@ export const usePlanStore = create<PlanState>((set, get) => ({
         pricing: useSettingsStore.getState().settings.pricing,
       },
       {
-        onProgress: (p) => set({ progress: p }),
+        onProgress: (p) => {
+          if (seq !== get().runSeq) return
+          set({ progress: p })
+        },
         onResult: (plan) => {
+          if (seq !== get().runSeq) return
           set({ plan, status: 'done', progress: 1, task: null })
           void get().saveToHistory(project, plan)
         },
         onError: (code, message) => {
+          if (seq !== get().runSeq) return
           const status = code === 'CANCELLED' ? 'cancelled' : 'error'
           set({ status, error: { code, message }, task: null })
         },
@@ -90,7 +100,11 @@ export const usePlanStore = create<PlanState>((set, get) => ({
 
   cancel() {
     get().task?.cancel()
-    set((s) => (s.status === 'running' ? { status: 'cancelled', progress: 0, task: null } : {}))
+    set((s) =>
+      s.status === 'running'
+        ? { status: 'cancelled', progress: 0, task: null, runSeq: s.runSeq + 1 }
+        : {},
+    )
   },
 
   setPlan: (plan) => set({ plan }),
@@ -102,7 +116,8 @@ export const usePlanStore = create<PlanState>((set, get) => ({
   setHoverPart: (hoverPartKey) => set({ hoverPartKey }),
   setEditMode: (editMode) => set({ editMode }),
 
-  reset: () =>
+  reset: () => {
+    get().task?.cancel()
     set({
       plan: null,
       status: 'idle',
@@ -113,7 +128,9 @@ export const usePlanStore = create<PlanState>((set, get) => ({
       hoverPartKey: null,
       editMode: false,
       task: null,
-    }),
+      runSeq: get().runSeq + 1,
+    })
+  },
 
   async saveToHistory(project, plan) {
     const record: PlanRecord = {

@@ -104,7 +104,7 @@ export function SheetConfigPanel() {
     const { id, name, length, width, price } = form
     const spec: SheetSpec = {
       id: id ?? `mat-${Date.now()}`,
-      name: name.trim() || t('leftPanel.sheet'),
+      name: name.trim() || t('leftPanel.sheetDefaultName'),
       length: Math.max(1, Math.round(length)),
       width: Math.max(1, Math.round(width)),
       price: Math.max(0, price),

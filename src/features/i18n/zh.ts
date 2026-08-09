@@ -87,6 +87,7 @@ export const zh = {
     addSheet: '添加板材',
     editSheet: '编辑板材',
     sheetName: '板材名称',
+    sheetDefaultName: '新板材',
     sheetLength: '长（mm）',
     sheetWidth: '宽（mm）',
     processParams: '工艺参数',

@@ -83,7 +83,11 @@ export interface EvalScore {
   reusableWasteBlocks: number
   /** 最大可再利用余料块面积 mm²（再次，越大越好） */
   largestReusableWaste: number
-  /** 单调标量成本（字典序严格保序，供模拟退火使用） */
+  /**
+   * 单调标量成本（字典序保序，仅参考/兼容保留）——
+   * SA 接受判定已改为字典序分层（search.ts）：板数层硬规则 + 紧凑度层毫米温度退火，
+   * 不再使用本标量（固定权重 × 无界量的编码在大项目上会与张数层同量级碰撞）。
+   */
   cost: number
 }
 

@@ -66,7 +66,9 @@ export async function exportPdf(
   const texts = pdfTexts(labels, names)
   const fonts = await prepareExportFonts(texts)
 
-  const { bytes } = await renderPDF(plan, project.sheets, names, labels, fonts)
+  // 封边标注：PDF 按当前零件表的 edgeBand 需求绘制（历史方案重导出为尽力而为）
+  const edgeBands = new Map(project.parts.map((p) => [p.id, p.edgeBand ?? []]))
+  const { bytes } = await renderPDF(plan, project.sheets, names, labels, fonts, edgeBands)
   const date = new Date().toISOString().slice(0, 10)
   await platform.saveFile(bytes, `${project.name}-${date}.pdf`, 'application/pdf')
 }

@@ -32,6 +32,13 @@ function readImageFile(file: File): Promise<string> {
   })
 }
 
+/** 图片字节内容哈希（SHA-256 hex）——服务端按 (user_id, image_hash) 幂等去重，必须用真实内容哈希而非时间戳 */
+export async function hashImage(blob: Blob): Promise<string> {
+  const buf = await blob.arrayBuffer()
+  const digest = await crypto.subtle.digest('SHA-256', buf)
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('')
+}
+
 export function ReviewModal() {
   const { t } = useTranslation()
   const { message } = AntApp.useApp()
@@ -62,11 +69,12 @@ export function ReviewModal() {
     s.setError(null)
     try {
       const blob = await (await fetch(s.image)).blob()
+      const imageHash = await hashImage(blob)
       const sheet = await api.recognize(
         auth.token,
         platform.getDeviceFingerprint(),
         blob,
-        `img-${Date.now()}`,
+        imageHash,
       )
       s.acceptSheet(sheet)
       // 成功扣次后刷新余额

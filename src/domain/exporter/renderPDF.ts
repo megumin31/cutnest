@@ -43,6 +43,8 @@ export interface PdfLabels {
 export interface PdfFonts {
   /** CJK 字体缓冲（TTF/OTF），文本含 CJK 字符时必需 */
   cjk?: ArrayBuffer
+  /** 泰文字体缓冲（TTF/OTF），文本含泰文时必需 */
+  thai?: ArrayBuffer
 }
 
 export interface PdfResult {
@@ -62,6 +64,14 @@ export function needsCjkFont(texts: string[]): boolean {
   for (const t of texts) {
     // eslint-disable-next-line no-control-regex
     if (/[\u2e80-\u9fff\uac00-\ud7af\uf900-\ufaff]/.test(t)) return true
+  }
+  return false
+}
+
+/** 文本是否需要泰文字体（泰文音节块 \u0e00-\u0e7f，拉丁组字体不含泰文字形） */
+export function needsThaiFont(texts: string[]): boolean {
+  for (const t of texts) {
+    if (/[\u0e00-\u0e7f]/.test(t)) return true
   }
   return false
 }
@@ -192,10 +202,17 @@ function drawSummary(l: Layout, plan: CutPlan, sheetLibrary: SheetSpec[]) {
   doc.text(`${labels.sheetPrefix}1 ${labels.sheetSuffix}`, MARGIN, 296 - MARGIN - 8, { align: 'left' })
 }
 
-/** 绘制一张板：边框 + 零件矩形 + 标注 */
-function drawSheetPage(l: Layout, plan: CutPlan, sheetLibrary: SheetSpec[], sheetIdx: number, partNames: Map<string, string>) {
+/** 绘制一张板：边框 + 零件矩形 + 封边标注 + 文字标注 */
+function drawSheetPage(
+  l: Layout,
+  plan: CutPlan,
+  sheetLibrary: SheetSpec[],
+  sheetIdx: number,
+  partNames: Map<string, string>,
+  edgeBands?: Map<string, ('L' | 'R' | 'T' | 'B')[]>,
+) {
   const { doc, labels } = l
-  const scene = toScene(plan, sheetLibrary, partNames)[sheetIdx]
+  const scene = toScene(plan, sheetLibrary, partNames, edgeBands)[sheetIdx]
   if (!scene) return
 
   const usableLen = scene.usableLen
@@ -246,6 +263,27 @@ function drawSheetPage(l: Layout, plan: CutPlan, sheetLibrary: SheetSpec[], shee
     doc.setLineWidth(0.25)
     doc.rect(px, py, pw, ph, 'FD')
 
+    // 封边标注：加粗深色线画在需封边的边上（边内 0.55mm 内侧，视觉上"该边加厚"）。
+    // 约定：T/B = len 方向两条长边、L/R = wid 方向两条短边；零件旋转 90° 后
+    //   B→左竖边、T→右竖边、L→下横边、R→上横边（与未旋转时 T/B 上下、L/R 左右一致）
+    const band = p.edgeBand ?? []
+    if (band.length > 0) {
+      doc.setDrawColor(24, 24, 27)
+      doc.setLineWidth(1.1)
+      const inset = 0.55
+      if (p.rotated) {
+        if (band.includes('B')) doc.line(px + inset, py, px + inset, py + ph)
+        if (band.includes('T')) doc.line(px + pw - inset, py, px + pw - inset, py + ph)
+        if (band.includes('L')) doc.line(px, py + inset, px + pw, py + inset)
+        if (band.includes('R')) doc.line(px, py + ph - inset, px + pw, py + ph - inset)
+      } else {
+        if (band.includes('B')) doc.line(px, py + inset, px + pw, py + inset)
+        if (band.includes('T')) doc.line(px, py + ph - inset, px + pw, py + ph - inset)
+        if (band.includes('L')) doc.line(px + inset, py, px + inset, py + ph)
+        if (band.includes('R')) doc.line(px + pw - inset, py, px + pw - inset, py + ph)
+      }
+    }
+
     // 标注（零件太小则不画文字；深色偏移阴影保证白字在亮色零件上可读）
     if (pw > 22 && ph > 8) {
       const centerX = px + pw / 2
@@ -282,14 +320,20 @@ export async function renderPDF(
   partNames: Map<string, string>,
   labels: PdfLabels,
   fonts: PdfFonts = {},
+  edgeBands?: Map<string, ('L' | 'R' | 'T' | 'B')[]>,
 ): Promise<PdfResult> {
-  // 决定是否用 CJK 字体（词条标签 + 用户输入全部参与判定）
+  // 决定是否用 CJK/泰文字体（词条标签 + 用户输入全部参与判定；混合场景 CJK 优先）
   const allText = pdfTexts(labels, partNames)
   const needCjk = needsCjkFont(allText)
+  const needThai = !needCjk && needsThaiFont(allText)
   if (needCjk && !fonts.cjk) {
     throw new PdfFontError('PDF 文本包含 CJK 字符，但未提供字体')
   }
+  if (needThai && !fonts.thai) {
+    throw new PdfFontError('PDF 文本包含泰文字符，但未提供字体')
+  }
   const cjkMode = needCjk
+  const thaiMode = needThai
 
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
 
@@ -298,6 +342,12 @@ export async function renderPDF(
     const b64 = arrayBufferToBase64(buf)
     doc.addFileToVFS('NotoSC.ttf', b64)
     doc.addFont('NotoSC.ttf', 'NotoSC', 'normal')
+  }
+  if (thaiMode) {
+    const buf = fonts.thai as ArrayBuffer
+    const b64 = arrayBufferToBase64(buf)
+    doc.addFileToVFS('NotoThai.ttf', b64)
+    doc.addFont('NotoThai.ttf', 'NotoThai', 'normal')
   }
   const l: Layout = {
     doc,
@@ -308,6 +358,9 @@ export async function renderPDF(
       if (cjkMode) {
         // 子集化字体仅注册 normal 字重
         doc.setFont('NotoSC', 'normal')
+      } else if (thaiMode) {
+        // 泰文字体含拉丁字形，整档统一使用
+        doc.setFont('NotoThai', 'normal')
       } else {
         doc.setFont('helvetica', style)
       }
@@ -324,7 +377,7 @@ export async function renderPDF(
     doc.addPage()
     drawWatermark(l)
     drawHeader(l)
-    drawSheetPage(l, plan, sheetLibrary, i, partNames)
+    drawSheetPage(l, plan, sheetLibrary, i, partNames, edgeBands)
   }
 
   const bytes = new Uint8Array(doc.output('arraybuffer'))

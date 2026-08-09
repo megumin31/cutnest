@@ -4,6 +4,8 @@
  *
  * 结构：多初始序取优 → 退火细化 → 周期"踢"（大范围整段重排）再细化，
  * 每次细化后更新全局最优。多 seed 并行由调用方组合（确定性 seed 派生）。
+ * 接受判定按字典序分层：板数层硬规则（多板永不接受），同板数下紧凑度层用毫米温度退火，
+ * 块数/最大块层用 compareScores 精确比较 —— 温度只放松布局整齐度，不放松板数。
  *
  * 确定性保证：迭代次数由 settings.quality 派生（与机器速度无关），
  * 全部随机性来自 mulberry32(seed)，不读时钟 —— 同输入两次运行结果完全一致。
@@ -12,7 +14,7 @@ import { mulberry32, randInt, type Rng } from './rng'
 import { packSequence, type PackItem, type PackResult } from './stripPacker'
 import { evaluatePlan, compareScores, type EvalScore } from './evaluate'
 import { QUALITY_PART_ITER } from '../materials'
-import type { Quality } from '../types'
+import { EPSILON, type Quality } from '../types'
 
 export interface SearchInstance extends PackItem {
   /** 是否允许旋转（grain==='any'） */
@@ -116,8 +118,10 @@ export function search(params: SearchParams): SearchOutcome {
     return { result: { sheets: [] }, score: { sheetCount: 0, compactness: 0, reusableWasteBlocks: 0, largestReusableWaste: 0, cost: 0 } }
   }
 
-  const T0 = 1e15
-  const T1 = 1e9
+  // 温度单位为"紧凑度劣化的毫米数"：1000mm → 0.001mm（对应用权重 1e12 时期的 T0=1e15/T1=1e9，
+  // 换算后节奏完全一致）。温度永远只放松"同类聚排"层，绝不放松"用板张数"层。
+  const T0 = 1e3
+  const T1 = 1e-3
   const reportEvery = Math.max(8, Math.floor(iterations / 40))
 
   /** 一次退火细化：从 startItems 出发跑 limit 次迭代 */
@@ -215,8 +219,19 @@ export function search(params: SearchParams): SearchOutcome {
       if (!candidate) continue
       const candScore = evalIt(candidate)
 
-      const delta = candScore.cost - curScore.cost
-      if (delta <= 0 || rng() < Math.exp(-delta / T)) {
+      // 分层接受（字典序，见 evaluate.ts）：板数层是硬规则——
+      // 候选多一张板永不接受；同板数下严格更优直接接受，
+      // 更差只允许按"紧凑度严格劣化量（mm）"退火接受（温度永远不放松板数；
+      // 紧凑度相同而余料层更差的候选一律拒绝——低层比较保持精确）。
+      const cmp = compareScores(candScore, curScore)
+      let accept = false
+      if (cmp > 0) {
+        accept = true
+      } else if (cmp < 0 && candScore.sheetCount === curScore.sheetCount) {
+        const deltaMm = candScore.compactness - curScore.compactness
+        if (deltaMm > EPSILON && rng() < Math.exp(-deltaMm / T)) accept = true
+      }
+      if (accept) {
         curItems = mutated
         curResult = candidate
         curScore = candScore

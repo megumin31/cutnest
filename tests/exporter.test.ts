@@ -5,7 +5,7 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync, existsSync } from 'node:fs'
 import { createOptimizer } from '../src/domain/optimizer'
 import { renderDXF, optimizeCutOrder, asciiLayerName, rectContour } from '../src/domain/exporter/renderDXF'
-import { renderPDF, needsCjkFont, pdfTexts, PdfFontError } from '../src/domain/exporter/renderPDF'
+import { renderPDF, needsCjkFont, needsThaiFont, pdfTexts, PdfFontError } from '../src/domain/exporter/renderPDF'
 import { toScene } from '../src/domain/exporter/toScene'
 import { subsetFontToTtf } from '../src/infra/fonts/subset'
 import type { CutPlan, Part, SheetSpec, ExportPrefs } from '../src/domain/types'
@@ -36,8 +36,20 @@ describe('toScene', () => {
     const scene = toScene(plan, [sheet], partNames)
     const total = scene.reduce((s, sc) => s + sc.parts.length, 0)
     expect(total).toBe(5)
-    expect(scene[0].parts[0].name).toBe('侧板')
+    // 零件类型齐全（首块零件的摆放顺序依赖搜索路径，不断言具体次序）
+    const partIds = new Set(scene.flatMap((sc) => sc.parts.map((p) => p.partId)))
+    expect(partIds).toEqual(new Set(['a', 'b']))
+    expect(scene[0].parts.some((p) => p.name === '侧板')).toBe(true)
     expect(scene[0].utilization).toBeCloseTo(plan.stats.utilization / plan.stats.sheetCount, 5)
+  })
+
+  it('edgeBands 传入时场景零件携带封边需求', async () => {
+    const plan = await makePlan()
+    const bands = new Map<string, ('L' | 'R' | 'T' | 'B')[]>([['a', ['L', 'R']]])
+    const scene = toScene(plan, [sheet], partNames, bands)
+    const all = scene.flatMap((s) => s.parts)
+    expect(all.find((p) => p.partId === 'a')?.edgeBand).toEqual(['L', 'R'])
+    expect(all.find((p) => p.partId === 'b')?.edgeBand).toBeUndefined()
   })
 })
 
@@ -132,6 +144,32 @@ describe('renderDXF', () => {
     expect(vertices.some(([x, y]) => x === 10 && y === 10)).toBe(true)
     expect(vertices.every(([x, y]) => x >= 10 && y >= 10)).toBe(true)
   })
+
+  it('同名零件不重复建图层：不抛错且两个零件都输出', () => {
+    const plan: CutPlan = {
+      id: 'dup',
+      createdAt: 0,
+      sheets: [
+        {
+          sheetIndex: 0,
+          sheetSpecId: 's1',
+          placements: [
+            { partId: 'a', instance: 0, x: 0, y: 0, len: 1000, wid: 500, rotated: false },
+            { partId: 'b', instance: 0, x: 1003, y: 0, len: 800, wid: 400, rotated: false },
+          ],
+        },
+      ],
+      sheetLibrary: [sheet],
+      stats: { sheetCount: 1, utilization: 50, totalCost: 100, wasteArea: 0, reusableWasteBlocks: 0, largestReusableWaste: 0 },
+      settings: createDefaultSettings(),
+    }
+    // 两个不同 partId 但同名 'Board'：图层名去重后不抛错，实体全部输出
+    const dxf = renderDXF(plan, [sheet], prefs, new Map([['a', 'Board'], ['b', 'Board']]))
+    const polylines = dxf.split('\n').filter((l) => l.trim() === 'LWPOLYLINE').length
+    expect(polylines).toBe(2)
+    // 第二个零件图层回退到 partId，不与该零件共用图层
+    expect(dxf.split('\n').filter((l) => l.trim() === 'Board').length).toBeGreaterThanOrEqual(1)
+  })
 })
 
 describe('renderPDF', () => {
@@ -151,6 +189,25 @@ describe('renderPDF', () => {
     partCountLabel: '件',
     dateText: '2026-08-05',
     watermark: '样品水印',
+    unit: 'mm' as const,
+  }
+
+  const thaiLabels = {
+    projectName: 'ตู้เสื้อผ้า',
+    companyName: 'Carpentry',
+    companyAddress: 'Ind. Park 8',
+    companyPhone: '138-0000',
+    sheetsLabel: 'Sheets',
+    utilizationLabel: 'Utilization',
+    costLabel: 'Total Cost',
+    wasteLabel: 'Waste Area',
+    reusableLabel: 'Reusable Blocks',
+    largestLabel: 'Largest Block',
+    sheetPrefix: 'Sheet ',
+    sheetSuffix: '',
+    partCountLabel: 'parts',
+    dateText: '2026-08-08',
+    watermark: 'SAMPLE',
     unit: 'mm' as const,
   }
 
@@ -230,5 +287,88 @@ describe('renderPDF', () => {
     expect(needsCjkFont(['abc', 'def'])).toBe(false)
     expect(needsCjkFont(['侧板'])).toBe(true)
     expect(needsCjkFont(['日本語'])).toBe(true)
+  })
+
+  it('needsThaiFont 检测（泰文与 CJK 互不误判）', () => {
+    expect(needsThaiFont(['abc', 'def'])).toBe(false)
+    expect(needsThaiFont(['ชั้นวาง'])).toBe(true)
+    expect(needsCjkFont(['ชั้นวาง'])).toBe(false)
+    expect(needsThaiFont(['侧板'])).toBe(false)
+  })
+
+  it('泰文缺字体时抛 PdfFontError', async () => {
+    const plan = await makePlan()
+    const names = new Map([
+      ['a', 'ชั้นวาง'],
+      ['b', 'Drawer Face'],
+    ])
+    await expect(renderPDF(plan, [sheet], names, thaiLabels)).rejects.toBeInstanceOf(PdfFontError)
+  })
+
+  it('泰文 + 子集字体：PDF 嵌入 FontFile 且文本实际使用该字体', async () => {
+    const plan = await makePlan()
+    const fontPath = 'tests/fixtures/fonts/NotoSansThai.ttf'
+    if (!existsSync(fontPath)) return // 无字体 fixture 时跳过
+    const wasmPath = 'node_modules/harfbuzzjs/hb-subset.wasm'
+    const font = readFileSync(fontPath)
+    const wasm = readFileSync(wasmPath)
+    const names = new Map([
+      ['a', 'ชั้นวาง'],
+      ['b', 'Drawer Face'],
+    ])
+    const subset = await subsetFontToTtf(
+      font.buffer.slice(font.byteOffset, font.byteOffset + font.byteLength),
+      pdfTexts(thaiLabels, names).join(''),
+      wasm.buffer.slice(wasm.byteOffset, wasm.byteOffset + wasm.byteLength),
+    )
+    const result = await renderPDF(plan, [sheet], names, thaiLabels, { thai: subset })
+    expect(result.pageCount).toBe(1 + plan.stats.sheetCount)
+    const text = Buffer.from(result.bytes).toString('latin1')
+    expect(text).toMatch(/\/FontFile[23]/)
+    // 链式定位：NotoThai 字体对象 → 页面资源名 → 内容流 Tf（防泰文悄悄落回 helvetica）
+    const objRe = /(\d+)\s+0\s+obj([\s\S]*?)endobj/g
+    const objs = new Map<number, string>()
+    let m: RegExpExecArray | null
+    while ((m = objRe.exec(text))) objs.set(Number(m[1]), m[2])
+    const thaiObjs = [...objs.entries()]
+      .filter(([, body]) => /\/Type\s*\/Font/.test(body) && /\/NotoThai/.test(body))
+      .map(([n]) => n)
+    expect(thaiObjs.length).toBeGreaterThan(0)
+    const thaiResNames = new Set<string>()
+    const refRe = /\/F(\d+)\s+(\d+)\s+0\s+R/g
+    while ((m = refRe.exec(text))) {
+      if (thaiObjs.includes(Number(m[2]))) thaiResNames.add(`F${m[1]}`)
+    }
+    const tfUsed = new Set([...text.matchAll(/\/F(\d+)\s+[\d.]+\s+Tf/g)].map((x) => `F${x[1]}`))
+    expect(thaiResNames.size).toBeGreaterThan(0)
+    expect([...thaiResNames].some((n) => tfUsed.has(n))).toBe(true)
+  })
+
+  it('封边标注：传入 edgeBands 不抛错、页数不变', async () => {
+    const plan = await makePlan()
+    const bands = new Map<string, ('L' | 'R' | 'T' | 'B')[]>([['a', ['L', 'R', 'T', 'B']]])
+    const latinNames = new Map([
+      ['a', 'Side Panel'],
+      ['b', 'Drawer Face'],
+    ])
+    const result = await renderPDF(plan, [sheet], latinNames, {
+      projectName: 'Cabinet',
+      companyName: 'Carpentry',
+      companyAddress: 'Ind. Park 8',
+      companyPhone: '138-0000',
+      sheetsLabel: 'Sheets',
+      utilizationLabel: 'Utilization',
+      costLabel: 'Total Cost',
+      wasteLabel: 'Waste Area',
+      reusableLabel: 'Reusable Blocks',
+      largestLabel: 'Largest Block',
+      sheetPrefix: 'Sheet ',
+      sheetSuffix: '',
+      partCountLabel: 'parts',
+      dateText: '2026-08-08',
+      watermark: 'SAMPLE',
+      unit: 'mm',
+    }, {}, bands)
+    expect(result.pageCount).toBe(1 + plan.stats.sheetCount)
   })
 })

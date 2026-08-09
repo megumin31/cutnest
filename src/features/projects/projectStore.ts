@@ -12,12 +12,17 @@ export function newId(): string {
   return crypto.randomUUID()
 }
 
-export function createProject(name: string, existing?: Partial<Project>): Project {
+export async function createProject(name: string, existing?: Partial<Project>): Promise<Project> {
   const now = Date.now()
-  // 应用设置页的默认板材库 / 切缝 / 修边
+  // 应用设置页的默认板材库 / 切缝 / 修边（默认库 = 内置规格 + 自定义材料，按 id 去重）
   const prefs = useSettingsStore.getState().settings
+  const custom = await storage.listMaterials()
+  const allSheets = [...custom, ...DEFAULT_SHEETS]
+  const byId = new Map(allSheets.map((s) => [s.id, s]))
   const sheetIds = prefs.defaultSheetIds?.length ? prefs.defaultSheetIds : [DEFAULT_SHEETS[0].id]
-  const sheets = DEFAULT_SHEETS.filter((s) => sheetIds.includes(s.id))
+  const sheets = sheetIds
+    .map((id) => byId.get(id))
+    .filter((s): s is SheetSpec => s !== undefined)
   const settings = createDefaultSettings({
     ...(prefs.kerf !== undefined ? { kerf: prefs.kerf } : {}),
     ...(prefs.trim !== undefined ? { trimAllowance: prefs.trim } : {}),
@@ -76,7 +81,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   },
 
   async createProject(name) {
-    const project = createProject(name)
+    const project = await createProject(name)
     await storage.saveProject(project)
     set((s) => ({ projects: [project, ...s.projects], current: project, dirty: false }))
     return project

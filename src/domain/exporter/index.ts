@@ -4,5 +4,5 @@
 export { toScene } from './toScene'
 export type { ScenePart, SceneSheet } from './toScene'
 export { renderDXF, asciiLayerName, rectContour, optimizeCutOrder } from './renderDXF'
-export { renderPDF, needsCjkFont, pdfTexts, PdfFontError } from './renderPDF'
+export { renderPDF, needsCjkFont, needsThaiFont, pdfTexts, PdfFontError } from './renderPDF'
 export type { PdfLabels, PdfFonts, PdfResult } from './renderPDF'

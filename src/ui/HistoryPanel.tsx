@@ -46,6 +46,8 @@ export function HistoryPanel() {
   if (!current) return null
 
   const onOpen = (r: PlanRecord) => {
+    // 取消运行中的任务并作废其回调，防止其晚到的 CANCELLED/结果覆盖历史方案视图
+    usePlanStore.getState().cancel()
     usePlanStore.getState().setPlan(r.plan)
     usePlanStore.getState().setStatus('done')
     usePlanStore.getState().setSheetIndex(0)

@@ -65,14 +65,16 @@ const BASE_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? ''
 class RemoteApiClient implements ApiClient {
   private async request<T>(path: string, init: RequestInit = {}, token?: string): Promise<T> {
     let resp: Response
+    // FormData 禁止手动设 Content-Type：浏览器需要自己附加 multipart boundary，否则服务端解析失败
+    const headers = new Headers(init.headers)
+    if (token) headers.set('Authorization', `Bearer ${token}`)
+    if (!(init.body instanceof FormData)) {
+      headers.set('Content-Type', 'application/json')
+    }
     try {
       resp = await fetch(`${BASE_URL}${path}`, {
         ...init,
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          ...(init.headers ?? {}),
-        },
+        headers,
       })
     } catch {
       throw new ApiError('NETWORK', '网络异常，请联网后重试')
