@@ -62,10 +62,10 @@ export async function exportPdf(
       : null
     : brand
 
-  // 字体：扫描整份文档实际绘制的全部文本（词条标签 + 用户输入 + 格式化字符），
-  // 与 renderPDF 内部判定共用 pdfTexts —— 缺字符会白字/乱码
+  // 字体：扫描整份文档实际绘制的全部文本（词条标签 + 用户输入 + 板材规格名 + 格式化字符），
+  // 与 renderPDF 内部判定共用 pdfTexts（同一份 plan.sheetLibrary 快照）——缺字符会白字/乱码
   const names = partNames ?? partNamesOf(project)
-  const texts = pdfTexts(labels, names)
+  const texts = pdfTexts(labels, names, plan.sheetLibrary.map((s) => s.name))
   const fonts = await prepareExportFonts(texts)
 
   // 封边标注：PDF 按当前零件表的 edgeBand 需求绘制（历史方案重导出为尽力而为）

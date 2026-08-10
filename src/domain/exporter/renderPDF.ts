@@ -96,8 +96,16 @@ export function needsThaiFont(texts: string[]): boolean {
   return false
 }
 
-/** 整份文档实际绘制的全部文本（词条标签 + 用户输入 + 格式化动态字符）——字体决策与子集化必须用它 */
-export function pdfTexts(labels: PdfLabels, partNames: Map<string, string>): string[] {
+/**
+ * 整份文档实际绘制的全部文本（词条标签 + 用户输入 + 板材规格名 + 格式化动态字符）
+ * ——字体决策与子集化必须用它。**新增任何绘制文本都必须同步此清单**（缺项 → 乱码/豆腐块）。
+ */
+export function pdfTexts(
+  labels: PdfLabels,
+  partNames: Map<string, string>,
+  /** 板材规格名（plan.sheetLibrary[].name，摘要页板材库行与页脚会绘制） */
+  sheetNames?: string[],
+): string[] {
   return [
     labels.projectName,
     labels.companyName,
@@ -115,6 +123,7 @@ export function pdfTexts(labels: PdfLabels, partNames: Map<string, string>): str
     labels.dateText,
     labels.watermark ?? '',
     ...partNames.values(),
+    ...(sheetNames ?? []),
     FORMAT_GLYPHS,
   ]
 }
@@ -472,8 +481,8 @@ export async function renderPDF(
   fonts: PdfFonts = {},
   edgeBands?: Map<string, ('L' | 'R' | 'T' | 'B')[]>,
 ): Promise<PdfResult> {
-  // 决定是否用 CJK/泰文字体（词条标签 + 用户输入全部参与判定；混合场景 CJK 优先）
-  const allText = pdfTexts(labels, partNames)
+  // 决定是否用 CJK/泰文字体（词条标签 + 用户输入 + 板材规格名全部参与判定；混合场景 CJK 优先）
+  const allText = pdfTexts(labels, partNames, plan.sheetLibrary.map((s) => s.name))
   const needCjk = needsCjkFont(allText)
   const needThai = !needCjk && needsThaiFont(allText)
   if (needCjk && !fonts.cjk) {

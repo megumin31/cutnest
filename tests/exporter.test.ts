@@ -173,6 +173,24 @@ describe('renderDXF', () => {
 })
 
 describe('renderPDF', () => {
+  const latinLabels = {
+    projectName: 'Cabinet',
+    companyName: 'Carpentry',
+    companyAddress: 'Ind. Park 8',
+    companyPhone: '138-0000',
+    sheetsLabel: 'Sheets',
+    utilizationLabel: 'Utilization',
+    wasteLabel: 'Waste Area',
+    reusableLabel: 'Reusable Blocks',
+    largestLabel: 'Largest Block',
+    partArea: 'Part Area',
+    edgeMeters: 'Edge Band',
+    sheetLibraryLabel: 'Sheet Library',
+    partCountLabel: 'parts',
+    dateText: '2026-08-08',
+    watermark: 'SAMPLE',
+    unit: 'mm' as const,
+  }
   const labels = {
     projectName: '客厅柜',
     companyName: '木工坊',
@@ -281,6 +299,53 @@ describe('renderPDF', () => {
     const tfUsed = new Set([...text.matchAll(/\/F(\d+)\s+[\d.]+\s+Tf/g)].map((x) => `F${x[1]}`))
     expect(notoResNames.size).toBeGreaterThan(0)
     expect([...notoResNames].some((n) => tfUsed.has(n))).toBe(true)
+  })
+
+  it('pdfTexts 包含板材规格名（字体判定与子集化的必需字符）', () => {
+    const joined = pdfTexts(labels, partNames, ['颗粒板', '橡木多层板']).join('')
+    expect(joined).toContain('颗粒板')
+    expect(joined).toContain('橡木多层板')
+    // 不传板材名 = 旧行为（向后兼容）
+    expect(pdfTexts(labels, partNames).join('')).not.toContain('颗粒板')
+  })
+
+  it('全拉丁文档 + 中文板材名：字体需求被正确检测，缺字体抛 PdfFontError', async () => {
+    // 此前板材名不进清单 → 判定为纯拉丁 → 走 Helvetica 渲染中文板材名（豆腐块）
+    const cjkPlan: CutPlan = {
+      id: 'cjk-sheet',
+      createdAt: 0,
+      sheets: [
+        {
+          sheetIndex: 0,
+          sheetSpecId: 's1',
+          placements: [{ partId: 'a', instance: 0, x: 0, y: 0, len: 1000, wid: 500, rotated: false }],
+        },
+      ],
+      sheetLibrary: [{ id: 's1', name: '颗粒板', length: 2440, width: 1220, price: 100 }],
+      stats: { sheetCount: 1, utilization: 50, totalCost: 100, wasteArea: 0, reusableWasteBlocks: 0, largestReusableWaste: 0 },
+      settings: createDefaultSettings(),
+    }
+    const latinNames = new Map([['a', 'Side Panel']])
+    await expect(renderPDF(cjkPlan, latinNames, latinLabels)).rejects.toBeInstanceOf(PdfFontError)
+  })
+
+  it('泰文板材名触发泰文字体需求，缺字体抛 PdfFontError', async () => {
+    const thaiPlan: CutPlan = {
+      id: 'thai-sheet',
+      createdAt: 0,
+      sheets: [
+        {
+          sheetIndex: 0,
+          sheetSpecId: 't1',
+          placements: [{ partId: 'a', instance: 0, x: 0, y: 0, len: 1000, wid: 500, rotated: false }],
+        },
+      ],
+      sheetLibrary: [{ id: 't1', name: 'ไม้อัด', length: 2440, width: 1220, price: 100 }],
+      stats: { sheetCount: 1, utilization: 50, totalCost: 100, wasteArea: 0, reusableWasteBlocks: 0, largestReusableWaste: 0 },
+      settings: createDefaultSettings(),
+    }
+    const latinNames = new Map([['a', 'Side Panel']])
+    await expect(renderPDF(thaiPlan, latinNames, latinLabels)).rejects.toBeInstanceOf(PdfFontError)
   })
 
   it('needsCjkFont 检测', () => {
