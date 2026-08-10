@@ -7,8 +7,9 @@ import { LeftOutlined, RightOutlined } from '@ant-design/icons'
 import { usePlanStore, partKey } from '../features/cutting/planStore'
 import { useProjectStore } from '../features/projects/projectStore'
 import { useSettingsStore } from '../features/settings/settingsStore'
+import { planCost } from '../domain/pricing'
 import { usableArea } from '../domain/optimizer'
-import { formatLength, formatArea } from '../domain/units'
+import { formatLength, formatSqm } from '../domain/units'
 
 export function StatsPanel() {
   const { t } = useTranslation()
@@ -20,6 +21,7 @@ export function StatsPanel() {
   const current = useProjectStore((s) => s.current)
   const unit = useSettingsStore((s) => s.settings.unit)
   const pricingEnabled = useSettingsStore((s) => s.settings.pricing.enabled)
+  const pricing = useSettingsStore((s) => s.settings.pricing)
 
   if (!plan || !current) return null
 
@@ -39,12 +41,15 @@ export function StatsPanel() {
   const statItems: [string, string][] = [
     [t('rightPanel.sheetCount'), String(stats.sheetCount)],
     [t('rightPanel.utilization'), `${stats.utilization.toFixed(1)}%`],
-    [t('rightPanel.wasteArea'), formatArea(stats.wasteArea, unit)],
+    [t('rightPanel.partArea'), formatSqm(stats.partArea ?? 0)],
+    [t('rightPanel.edgeMeters'), `${(stats.edgeMeters ?? 0).toFixed(1)} m`],
+    [t('rightPanel.wasteArea'), formatSqm(stats.wasteArea)],
     [t('rightPanel.reusableBlocks'), String(stats.reusableWasteBlocks)],
-    [t('rightPanel.largestBlock'), `${Math.round(stats.largestReusableWaste / 1e6 * 100) / 100} m²`],
+    [t('rightPanel.largestBlock'), formatSqm(stats.largestReusableWaste)],
   ]
+  // 总成本固定末尾（开关只影响是否展示，不影响前面卡片位置）
   if (pricingEnabled) {
-    statItems.splice(2, 0, [t('rightPanel.totalCost'), `¥${stats.totalCost.toFixed(0)}`])
+    statItems.push([t('rightPanel.totalCost'), `¥${planCost(stats, pricing).toFixed(0)}`])
   }
 
   return (

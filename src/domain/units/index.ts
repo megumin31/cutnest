@@ -48,12 +48,16 @@ export function formatLength(
   return fixed.includes('.') ? fixed.replace(/\.?0+$/, '') : fixed
 }
 
-/** 面积 mm² → 目标单位字符串（如 2.98 m²） */
+/** 面积 mm² → 目标单位字符串（如 298 cm²） */
 export function formatArea(mm2: number, unit: LengthUnit): string {
-  const u = unit === 'mm' ? 'mm' : unit === 'cm' ? 'cm' : 'in'
-  if (u === 'mm') return `${Math.round(mm2)} mm²`
-  const factor = u === 'cm' ? 100 : 25.4 * 25.4
+  if (unit === 'mm') return `${Math.round(mm2)} mm²`
+  const factor = unit === 'cm' ? 100 : 25.4 * 25.4
   const scaled = mm2 / factor
   const decimals = scaled >= 100 ? 0 : scaled >= 10 ? 1 : 2
-  return `${scaled.toFixed(decimals)} ${u}²`
+  return `${scaled.toFixed(decimals)} ${unit}²`
+}
+
+/** 面积 mm² → "x.xx m²"（两位小数，整数位保留；统计面板与 PDF 摘要共用） */
+export function formatSqm(mm2: number): string {
+  return `${Math.round((mm2 / 1e6) * 100) / 100} m²`
 }

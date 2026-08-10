@@ -3,8 +3,12 @@
  * 多板全局最低位置：每个零件放入所有板中"可用位置 y 最低"的那张（同 y 取最左），
  * 全部板都放不下才开新板 —— 让后到的填料零件能填进旧板的侧洞。
  *
- * 切缝处理：零件在"槽空间"中占 (len+kerf)×(wid+kerf)，板材槽空间 = (UW+kerf)×(UH+kerf)，
+ * 切缝处理：零件在"槽空间"中占 (len+kerf)×(wid+kerf)，板材槽空间 = (len+kerf)×(wid+kerf)，
  * 等价于零件间净距恒为 kerf、板边无间距（边缘预留由 trimAllowance 表达）。
+ *
+ * 命名约定：实体规格（零件/板材/槽空间/可用区）一律用 len/wid（长×宽，领域术语，len ≥ wid）；
+ * 纯几何矩形（skyline 条带段、余料条带、外接框、bestFit 的待放矩形参数）用 w/h
+ * （坐标尺寸，无姿态，x↔w、y↔h）。两者语义不同，勿强行统一。
  */
 import { EPSILON } from '../types'
 
@@ -24,11 +28,13 @@ export interface PackItem {
   sheetId?: string
 }
 
-/** 板材库条目（可用区，trim/margin 已扣除） */
+/** 板材库条目（可用区，trim 已扣除） */
 export interface SheetLibraryEntry {
   id: string
-  usableW: number
-  usableH: number
+  /** 可用区长（X 轴，长边方向） */
+  usableLen: number
+  /** 可用区宽（Y 轴，宽边方向） */
+  usableWid: number
 }
 
 export interface SkylineSeg {
@@ -43,9 +49,10 @@ export interface PackedSheet {
   /** 槽空间坐标的放置（x/y 即零件左下角真实坐标） */
   placements: { item: PackItem; x: number; y: number }[]
   skyline: SkylineSeg[]
-  /** 槽空间尺寸 */
-  slotW: number
-  slotH: number
+  /** 槽空间长（X 方向，含 kerf） */
+  slotLen: number
+  /** 槽空间宽（Y 方向，含 kerf） */
+  slotWid: number
 }
 
 export interface PackResult {
@@ -65,11 +72,11 @@ function bestFit(
   segs: SkylineSeg[],
   w: number,
   h: number,
-  slotH: number,
+  slotWid: number,
   maxDepth: number,
 ): Fit | null {
   // 深度过滤：板内最深的空位都不够高 → 直接放不下
-  if (maxDepth + h > slotH + EPSILON) return null
+  if (maxDepth + h > slotWid + EPSILON) return null
   let bestY = Number.POSITIVE_INFINITY
   let bestX = Number.POSITIVE_INFINITY
   let bestStart = -1
@@ -87,7 +94,7 @@ function bestFit(
       if (width >= w - EPSILON) break
     }
     if (width < w - EPSILON) break // 剩余宽度不足，后续起点更不可能
-    if (y + h > slotH + EPSILON) continue // 超顶，试试更靠右的坑
+    if (y + h > slotWid + EPSILON) continue // 超顶，试试更靠右的坑
     if (y < bestY - EPSILON || (Math.abs(y - bestY) <= EPSILON && segs[i].x < bestX)) {
       bestY = y
       bestX = segs[i].x
@@ -147,10 +154,10 @@ export function packSequence(
     let best: SheetLibraryEntry | null = null
     for (const spec of library) {
       if (item.sheetId && spec.id !== item.sheetId) continue
-      const slotW = spec.usableW + kerf
-      const slotH = spec.usableH + kerf
-      if (item.slotLen > slotW + EPSILON || item.slotWid > slotH + EPSILON) continue
-      if (!best || spec.usableW * spec.usableH < best.usableW * best.usableH) best = spec
+      const specSlotLen = spec.usableLen + kerf
+      const specSlotWid = spec.usableWid + kerf
+      if (item.slotLen > specSlotLen + EPSILON || item.slotWid > specSlotWid + EPSILON) continue
+      if (!best || spec.usableLen * spec.usableWid < best.usableLen * best.usableWid) best = spec
     }
     return best
   }
@@ -159,9 +166,9 @@ export function packSequence(
     sheets.push({
       sheetSpecId: spec.id,
       placements: [],
-      skyline: [{ x: 0, y: 0, w: spec.usableW + kerf }],
-      slotW: spec.usableW + kerf,
-      slotH: spec.usableH + kerf,
+      skyline: [{ x: 0, y: 0, w: spec.usableLen + kerf }],
+      slotLen: spec.usableLen + kerf,
+      slotWid: spec.usableWid + kerf,
     })
     depths.push(0)
   }
@@ -173,7 +180,7 @@ export function packSequence(
     let best: Fit | null = null
     for (let s = 0; s < sheets.length; s++) {
       if (item.sheetId && sheets[s].sheetSpecId !== item.sheetId) continue
-      const f = bestFit(sheets[s].skyline, w, h, sheets[s].slotH, depths[s])
+      const f = bestFit(sheets[s].skyline, w, h, sheets[s].slotWid, depths[s])
       if (!f) continue
       if (!best || f.y < best.y - EPSILON || (Math.abs(f.y - best.y) <= EPSILON && f.x < best.x)) {
         best = { ...f, sheetIdx: s }

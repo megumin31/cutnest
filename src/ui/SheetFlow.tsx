@@ -128,7 +128,6 @@ export function SheetFlow() {
               {formatLength(specOf(plan.sheets[detailIndex].sheetSpecId).width, unit)} {unit}
             </span>
             <div style={{ flex: 1 }} />
-            <span style={{ fontSize: 12, color: 'var(--text-disabled)' }}>{t('rightPanel.prev')}: ↵</span>
           </div>
           <div style={{ flex: 1, padding: 24, overflow: 'hidden', display: 'flex' }}>
             <CutDiagram

@@ -7,7 +7,7 @@
  * - byArea 按面积计价：零件实际总面积 × 面积单价
  * 每零件分摊一律按面积占比。
  */
-import type { CostBreakdown, CutPlan, PricingPrefs } from '../types'
+import type { CostBreakdown, CutPlan, PlanStats, PricingPrefs } from '../types'
 
 export const DEFAULT_PRICING: PricingPrefs = {
   enabled: true,
@@ -17,11 +17,21 @@ export const DEFAULT_PRICING: PricingPrefs = {
   areaPricePerSqm: 120,
 }
 
+/**
+ * 按当前计价模式取方案成本：
+ * 新方案（含双模式快照 costItemized/costByArea）取对应模式值；
+ * 旧历史方案（无快照）回退 totalCost（旧数据在关闭核算时算的为 0，无法回算）。
+ */
+export function planCost(stats: PlanStats, prefs: PricingPrefs): number {
+  if (prefs.mode === 'itemized') return stats.costItemized ?? stats.totalCost
+  return stats.costByArea ?? stats.totalCost
+}
+
 /** 零件封边长度（mm）：edgeBand 相对零件本体 —— L/R 是左右短边（宽向）、T/B 是上下长边（长向），旋转不影响 */
-function edgeLengthOf(len: number, wid: number, band: ('L' | 'R' | 'T' | 'B')[] | undefined): number {
-  if (!band || band.length === 0) return 0
+export function edgeLengthOf(len: number, wid: number, bands: ('L' | 'R' | 'T' | 'B')[] | undefined): number {
+  if (!bands || bands.length === 0) return 0
   let l = 0
-  for (const b of band) {
+  for (const b of bands) {
     l += b === 'L' || b === 'R' ? wid : len
   }
   return l

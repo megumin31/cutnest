@@ -57,10 +57,7 @@ export function AccountPage() {
           <Card title={t('account.status')} styles={{ body: { padding: 18 } }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
               <ThunderboltOutlined style={{ fontSize: 22, color: 'var(--accent)' }} />
-              <div>
-                <div style={{ fontWeight: 600, fontSize: 15 }}>{s.email}</div>
-                <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{t('account.welcome', { email: '' })}</div>
-              </div>
+              <div style={{ fontWeight: 600, fontSize: 15 }}>{s.email}</div>
             </div>
             <Space direction="vertical" size={10} style={{ width: '100%' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

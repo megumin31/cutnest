@@ -70,16 +70,21 @@ export function ProjectListPage() {
         <div className="project-grid">
           {filtered.map((p) => {
             const partCount = p.parts.reduce((s, x) => s + x.quantity, 0)
-            const sheets = Math.max(1, Math.ceil(
+            const estimatedSheets = Math.max(1, Math.ceil(
               (p.parts.reduce((s, x) => s + x.length * x.width * x.quantity, 0) /
-                ((p.sheets[0]?.length ?? 2440) * (p.sheets[0]?.width ?? 1220))) * 1.0,
+                ((p.sheets[0]?.length ?? 2440) * (p.sheets[0]?.width ?? 1220))),
             ))
             return (
               <div
                 key={p.id}
                 className="project-card"
                 onClick={() => void onOpen(p.id)}
-                onKeyDown={() => {}}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    void onOpen(p.id)
+                  }
+                }}
                 role="button"
                 tabIndex={0}
               >
@@ -126,7 +131,7 @@ export function ProjectListPage() {
                   {t('projects.partCount', { count: partCount })}
                 </div>
                 <div style={{ color: 'var(--text-secondary)', fontSize: 13 }}>
-                  {t('projects.sheetCount', { count: sheets })}
+                  {t('projects.sheetCount', { count: estimatedSheets })}
                 </div>
                 <div style={{ color: 'var(--text-disabled)', fontSize: 12, marginTop: 12 }}>
                   {t('projects.lastUpdated', {

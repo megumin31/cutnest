@@ -44,8 +44,8 @@ export const BENCH_PART_COUNT = BENCH_PARTS.reduce((s, p) => s + p.quantity, 0)
 
 /** 理论最少板数（面积下界） */
 export function theoreticalMinSheets(settings: OptimizeSettings = BENCH_SETTINGS): number {
-  const usableW = BENCH_SHEET.length - 2 * settings.trimAllowance
-  const usableH = BENCH_SHEET.width - 2 * settings.trimAllowance
+  const usableLen = BENCH_SHEET.length - 2 * settings.trimAllowance
+  const usableWid = BENCH_SHEET.width - 2 * settings.trimAllowance
   const total = BENCH_PARTS.reduce((s, p) => s + p.length * p.width * p.quantity, 0)
-  return Math.ceil(total / (usableW * usableH))
+  return Math.ceil(total / (usableLen * usableWid))
 }

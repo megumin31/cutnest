@@ -11,7 +11,7 @@
  * 全部随机性来自 mulberry32(seed)，不读时钟 —— 同输入两次运行结果完全一致。
  */
 import { mulberry32, randInt, type Rng } from './rng'
-import { packSequence, type PackItem, type PackResult } from './stripPacker'
+import { packSequence, type PackItem, type PackResult, type SheetLibraryEntry } from './stripPacker'
 import { evaluatePlan, compareScores, type EvalScore } from './evaluate'
 import { QUALITY_PART_ITER } from '../materials'
 import { EPSILON, type Quality } from '../types'
@@ -28,8 +28,8 @@ export interface SearchInstance extends PackItem {
 
 export interface SearchParams {
   instances: SearchInstance[]
-  /** 板材库（可用区，trim/margin 已扣除） */
-  library: { id: string; usableW: number; usableH: number }[]
+  /** 板材库（可用区，trim 已扣除） */
+  library: SheetLibraryEntry[]
   kerf: number
   minReusableWaste: number
   iterations: number
@@ -74,7 +74,16 @@ function shuffle<T>(arr: T[], rng: Rng): T[] {
   return out
 }
 
-function makeSolver(library: { id: string; usableW: number; usableH: number }[], kerf: number) {
+/** 扰动类型（move 分支自文档化，randInt(rng, 5) 取值 0-4） */
+const MOVE = {
+  SWAP: 0,
+  ROTATE: 1,
+  MOVE_ONE: 2,
+  ROTATE_GROUP: 3,
+  MOVE_GROUP: 4,
+} as const
+
+function makeSolver(library: SheetLibraryEntry[], kerf: number) {
   const tryPack = (items: PackItem[]): PackResult | null => {
     const r = packSequence(items, library, kerf)
     return r.sheets.length === 0 ? null : r
@@ -141,14 +150,14 @@ export function search(params: SearchParams): SearchOutcome {
       if (n <= 1) break
       const move = randInt(rng, 5)
       let mutated: SearchInstance[] | null = null
-      if (move === 0) {
+      if (move === MOVE.SWAP) {
         // 交换两个随机位置
         const i = randInt(rng, n)
         let j = randInt(rng, n - 1)
         if (j >= i) j++
         mutated = [...curItems]
         ;[mutated[i], mutated[j]] = [mutated[j], mutated[i]]
-      } else if (move === 1) {
+      } else if (move === MOVE.ROTATE) {
         // 翻转一个随机实例
         const i = randInt(rng, n)
         const inst = curItems[i]
@@ -162,7 +171,7 @@ export function search(params: SearchParams): SearchOutcome {
           m.wid = m.rotated ? m.baseLen : m.baseWid
           mutated[i] = m
         }
-      } else if (move === 2) {
+      } else if (move === MOVE.MOVE_ONE) {
         // 移动一个实例到随机位置
         const i = randInt(rng, n)
         let j = randInt(rng, n - 1)
@@ -170,7 +179,7 @@ export function search(params: SearchParams): SearchOutcome {
         mutated = [...curItems]
         const [item] = mutated.splice(i, 1)
         mutated.splice(j, 0, item)
-      } else if (move === 3) {
+      } else if (move === MOVE.ROTATE_GROUP) {
         // 整组旋转：随机零件类型的全部实例一起翻转（协同动作）
         const byId = new Map<string, number[]>()
         curItems.forEach((it, i) => {
@@ -195,14 +204,14 @@ export function search(params: SearchParams): SearchOutcome {
           }
         }
       } else {
-        // 整组移动：随机零件类型的全部实例挪到随机位置（连续段）
+        // MOVE.MOVE_GROUP：整组移动——随机零件类型的全部实例挪到随机位置（连续段）
         const byId = new Map<string, number[]>()
         curItems.forEach((it, i) => {
           const list = byId.get(it.partId)
           if (list) list.push(i)
           else byId.set(it.partId, [i])
         })
-        const groups = [...byId.entries()].filter(([, v]) => v.length > 0)
+        const groups = [...byId.entries()] // 每组至少 1 个实例，无需过滤
         if (groups.length > 1) {
           const [, idxs] = groups[randInt(rng, groups.length)]
           const items = idxs.map((i) => curItems[i])

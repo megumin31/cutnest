@@ -99,7 +99,7 @@ describe('optimizeCutOrder', () => {
 describe('renderDXF', () => {
   it('生成合法 DXF：毫米单位、闭合轮廓数量正确、图层 ASCII', async () => {
     const plan = await makePlan()
-    const dxf = renderDXF(plan, [sheet], prefs, partNames)
+    const dxf = renderDXF(plan, prefs, partNames)
     // 头部
     expect(dxf.startsWith('0\nSECTION')).toBe(true)
     // $INSUNITS 4 = 毫米
@@ -131,7 +131,7 @@ describe('renderDXF', () => {
       stats: { sheetCount: 1, utilization: 50, totalCost: 100, wasteArea: 0, reusableWasteBlocks: 0, largestReusableWaste: 0 },
       settings: { ...createDefaultSettings(), trimAllowance: 10 },
     }
-    const dxf = renderDXF(planWithBorder, [sheet], prefs, new Map([['a', 'A']]))
+    const dxf = renderDXF(planWithBorder, prefs, new Map([['a', 'A']]))
     // 只取 LWPOLYLINE 实体块内的 10/20 顶点对（避开 VPORT 表里的同名组码）
     const vertices: [number, number][] = []
     for (const chunk of dxf.split('\n0\n')) {
@@ -164,7 +164,7 @@ describe('renderDXF', () => {
       settings: createDefaultSettings(),
     }
     // 两个不同 partId 但同名 'Board'：图层名去重后不抛错，实体全部输出
-    const dxf = renderDXF(plan, [sheet], prefs, new Map([['a', 'Board'], ['b', 'Board']]))
+    const dxf = renderDXF(plan, prefs, new Map([['a', 'Board'], ['b', 'Board']]))
     const polylines = dxf.split('\n').filter((l) => l.trim() === 'LWPOLYLINE').length
     expect(polylines).toBe(2)
     // 第二个零件图层回退到 partId，不与该零件共用图层
@@ -180,12 +180,12 @@ describe('renderPDF', () => {
     companyPhone: '138-0000-0000',
     sheetsLabel: '板材数',
     utilizationLabel: '利用率',
-    costLabel: '总成本',
     wasteLabel: '余料面积',
     reusableLabel: '可再利用块',
     largestLabel: '最大块',
-    sheetPrefix: '第 ',
-    sheetSuffix: ' 张',
+    partArea: '零件总面积',
+    edgeMeters: '封边长度',
+    sheetLibraryLabel: '板材库',
     partCountLabel: '件',
     dateText: '2026-08-05',
     watermark: '样品水印',
@@ -199,12 +199,12 @@ describe('renderPDF', () => {
     companyPhone: '138-0000',
     sheetsLabel: 'Sheets',
     utilizationLabel: 'Utilization',
-    costLabel: 'Total Cost',
     wasteLabel: 'Waste Area',
     reusableLabel: 'Reusable Blocks',
     largestLabel: 'Largest Block',
-    sheetPrefix: 'Sheet ',
-    sheetSuffix: '',
+    partArea: 'Part Area',
+    edgeMeters: 'Edge Band',
+    sheetLibraryLabel: 'Sheet Library',
     partCountLabel: 'parts',
     dateText: '2026-08-08',
     watermark: 'SAMPLE',
@@ -217,19 +217,19 @@ describe('renderPDF', () => {
       ['a', 'Side Panel'],
       ['b', 'Drawer Face'],
     ])
-    const result = await renderPDF(plan, [sheet], latinNames, {
+    const result = await renderPDF(plan, latinNames, {
       projectName: 'Cabinet',
       companyName: 'Carpentry',
       companyAddress: 'Ind. Park 8',
       companyPhone: '138-0000',
       sheetsLabel: 'Sheets',
       utilizationLabel: 'Utilization',
-      costLabel: 'Total Cost',
       wasteLabel: 'Waste Area',
       reusableLabel: 'Reusable Blocks',
       largestLabel: 'Largest Block',
-      sheetPrefix: 'Sheet ',
-      sheetSuffix: '',
+      partArea: 'Part Area',
+      edgeMeters: 'Edge Band',
+      sheetLibraryLabel: 'Sheet Library',
       partCountLabel: 'parts',
       dateText: '2026-08-08',
       watermark: 'SAMPLE',
@@ -242,7 +242,7 @@ describe('renderPDF', () => {
 
   it('CJK 文本缺字体时抛 PdfFontError', async () => {
     const plan = await makePlan()
-    await expect(renderPDF(plan, [sheet], partNames, labels)).rejects.toBeInstanceOf(PdfFontError)
+    await expect(renderPDF(plan, partNames, labels)).rejects.toBeInstanceOf(PdfFontError)
   })
 
   it('CJK 文本 + 子集字体：PDF 嵌入 FontFile 且文本实际使用该字体', async () => {
@@ -258,7 +258,7 @@ describe('renderPDF', () => {
       pdfTexts(labels, partNames).join(''),
       wasm.buffer.slice(wasm.byteOffset, wasm.byteOffset + wasm.byteLength),
     )
-    const result = await renderPDF(plan, [sheet], partNames, labels, { cjk: subset })
+    const result = await renderPDF(plan, partNames, labels, { cjk: subset })
     expect(result.pageCount).toBe(1 + plan.stats.sheetCount)
     const text = Buffer.from(result.bytes).toString('latin1')
     // 1) 字体被嵌入
@@ -289,6 +289,21 @@ describe('renderPDF', () => {
     expect(needsCjkFont(['日本語'])).toBe(true)
   })
 
+  it('needsCjkFont 覆盖全角符号与 CJK 扩展区（缺判定 → 走 Helvetica 白字/乱码）', () => {
+    expect(needsCjkFont(['（侧板）'])).toBe(true)
+    expect(needsCjkFont(['侧板｜抽屉'])).toBe(true)
+  })
+
+  it('pdfTexts 包含格式化动态字符（子集化必须保留，缺字 → 豆腐块）', () => {
+    const joined = pdfTexts(labels, new Map()).join('')
+    expect(joined).toContain('×')
+    expect(joined).toContain('·')
+    expect(joined).toContain('%')
+    expect(joined).toContain('²')
+    expect(joined).toContain('/')
+    expect(joined).toContain('…')
+  })
+
   it('needsThaiFont 检测（泰文与 CJK 互不误判）', () => {
     expect(needsThaiFont(['abc', 'def'])).toBe(false)
     expect(needsThaiFont(['ชั้นวาง'])).toBe(true)
@@ -302,7 +317,7 @@ describe('renderPDF', () => {
       ['a', 'ชั้นวาง'],
       ['b', 'Drawer Face'],
     ])
-    await expect(renderPDF(plan, [sheet], names, thaiLabels)).rejects.toBeInstanceOf(PdfFontError)
+    await expect(renderPDF(plan, names, thaiLabels)).rejects.toBeInstanceOf(PdfFontError)
   })
 
   it('泰文 + 子集字体：PDF 嵌入 FontFile 且文本实际使用该字体', async () => {
@@ -321,7 +336,7 @@ describe('renderPDF', () => {
       pdfTexts(thaiLabels, names).join(''),
       wasm.buffer.slice(wasm.byteOffset, wasm.byteOffset + wasm.byteLength),
     )
-    const result = await renderPDF(plan, [sheet], names, thaiLabels, { thai: subset })
+    const result = await renderPDF(plan, names, thaiLabels, { thai: subset })
     expect(result.pageCount).toBe(1 + plan.stats.sheetCount)
     const text = Buffer.from(result.bytes).toString('latin1')
     expect(text).toMatch(/\/FontFile[23]/)
@@ -351,19 +366,19 @@ describe('renderPDF', () => {
       ['a', 'Side Panel'],
       ['b', 'Drawer Face'],
     ])
-    const result = await renderPDF(plan, [sheet], latinNames, {
+    const result = await renderPDF(plan, latinNames, {
       projectName: 'Cabinet',
       companyName: 'Carpentry',
       companyAddress: 'Ind. Park 8',
       companyPhone: '138-0000',
       sheetsLabel: 'Sheets',
       utilizationLabel: 'Utilization',
-      costLabel: 'Total Cost',
       wasteLabel: 'Waste Area',
       reusableLabel: 'Reusable Blocks',
       largestLabel: 'Largest Block',
-      sheetPrefix: 'Sheet ',
-      sheetSuffix: '',
+      partArea: 'Part Area',
+      edgeMeters: 'Edge Band',
+      sheetLibraryLabel: 'Sheet Library',
       partCountLabel: 'parts',
       dateText: '2026-08-08',
       watermark: 'SAMPLE',

@@ -11,7 +11,7 @@ export interface ValidationResult {
 }
 
 /** 零件实例展开表：partId → 实例编号集合 */
-function expandInstances(parts: Part[]): Map<string, Set<number>> {
+function expandInstanceSets(parts: Part[]): Map<string, Set<number>> {
   const map = new Map<string, Set<number>>()
   for (const p of parts) {
     const set = new Set<number>()
@@ -21,11 +21,11 @@ function expandInstances(parts: Part[]): Map<string, Set<number>> {
   return map
 }
 
-function usableDims(sheet: SheetSpec, settings: OptimizeSettings): { w: number; h: number } {
-  const border = settings.trimAllowance
+function usableDims(sheet: SheetSpec, settings: OptimizeSettings): { len: number; wid: number } {
+  const trim = settings.trimAllowance
   return {
-    w: sheet.length - 2 * border,
-    h: sheet.width - 2 * border,
+    len: sheet.length - 2 * trim,
+    wid: sheet.width - 2 * trim,
   }
 }
 
@@ -44,7 +44,7 @@ export function validatePlan(
   settings: OptimizeSettings,
 ): ValidationResult {
   const errors: string[] = []
-  const instances = expandInstances(parts)
+  const instances = expandInstanceSets(parts)
   const byId = new Map(parts.map((p) => [p.id, p]))
   const specById = new Map(sheets.map((s) => [s.id, s]))
 
@@ -55,7 +55,7 @@ export function validatePlan(
       errors.push(`第 ${layout.sheetIndex + 1} 张板规格 ${layout.sheetSpecId} 不在板材库中`)
       continue
     }
-    const { w: UW, h: UH } = usableDims(spec, settings)
+    const { len: usableLen, wid: usableWid } = usableDims(spec, settings)
     const seenInSheet = new Set<string>()
     for (const pl of layout.placements) {
       const key = `${pl.partId}#${pl.instance}`
@@ -93,8 +93,8 @@ export function validatePlan(
         errors.push(`零件 ${key} 违反旋转约束`)
       }
 
-      // 越界（含 trim/margin 后的可用区域）
-      if (pl.x < -EPSILON || pl.y < -EPSILON || pl.x + pl.len > UW + EPSILON || pl.y + pl.wid > UH + EPSILON) {
+      // 越界（含 trim 后的可用区域）
+      if (pl.x < -EPSILON || pl.y < -EPSILON || pl.x + pl.len > usableLen + EPSILON || pl.y + pl.wid > usableWid + EPSILON) {
         errors.push(`零件 ${key} 越出可用区域`)
       }
     }

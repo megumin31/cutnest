@@ -2,8 +2,8 @@
  * pricing 单测 —— 两种计价模式（每样精算 / 按面积）+ 关闭开关（架构文档 §6.4）。
  */
 import { describe, it, expect } from 'vitest'
-import { calcCost, DEFAULT_PRICING } from '../src/domain/pricing'
-import type { CutPlan, Placement, PricingPrefs, SheetSpec } from '../src/domain/types'
+import { calcCost, planCost, DEFAULT_PRICING } from '../src/domain/pricing'
+import type { CutPlan, Placement, PlanStats, PricingPrefs, SheetSpec } from '../src/domain/types'
 import { createDefaultSettings } from '../src/domain/materials'
 
 const settings = createDefaultSettings()
@@ -118,5 +118,19 @@ describe('calcCost · 关闭与分摊', () => {
     const c = calcCost(plan([]), price, prefs({ processingFeePerSheet: 0 }), edgeBands)
     expect(c.utilization).toBe(80)
     expect(c.wasteArea).toBe(1000)
+  })
+})
+
+describe('planCost · 按当前计价模式选快照', () => {
+  it('新方案（含双模式快照）按 mode 取值', () => {
+    const stats: PlanStats = { sheetCount: 1, utilization: 80, totalCost: 0, wasteArea: 0, reusableWasteBlocks: 0, largestReusableWaste: 0, costItemized: 123, costByArea: 240 }
+    expect(planCost(stats, prefs({ mode: 'itemized' }))).toBe(123)
+    expect(planCost(stats, prefs({ mode: 'byArea' }))).toBe(240)
+  })
+
+  it('旧历史方案（无快照）回退 totalCost', () => {
+    const stats: PlanStats = { sheetCount: 1, utilization: 80, totalCost: 88, wasteArea: 0, reusableWasteBlocks: 0, largestReusableWaste: 0 }
+    expect(planCost(stats, prefs({ mode: 'itemized' }))).toBe(88)
+    expect(planCost(stats, prefs({ mode: 'byArea' }))).toBe(88)
   })
 })

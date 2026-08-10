@@ -1,6 +1,7 @@
 /**
  * 排样结果 → 统一场景模型（零件矩形轮廓 + 标注）。
  * 场景模型与导出格式（PDF/DXF）解耦，SVG 预览也复用此模型。
+ * 板材尺寸一律取 plan.sheetLibrary（排样快照）：导出必须与排样时一致，不允许静默兜底。
  */
 import type { CutPlan, SheetSpec } from '../types'
 
@@ -21,7 +22,7 @@ export interface SceneSheet {
   /** 板材全长（未修剪） */
   length: number
   width: number
-  /** 可用区域（trim/margin 后） */
+  /** 可用区域（trim 修边后） */
   usableLen: number
   usableWid: number
   parts: ScenePart[]
@@ -38,11 +39,14 @@ export function toScene(
   edgeBands?: Map<string, ('L' | 'R' | 'T' | 'B')[]>,
 ): SceneSheet[] {
   const specById = new Map(sheetLibrary.map((s) => [s.id, s]))
-  const border = plan.settings.trimAllowance
+  const trim = plan.settings.trimAllowance
   return plan.sheets.map((layout) => {
-    const spec = specById.get(layout.sheetSpecId) ?? sheetLibrary[0]
-    const usableLen = spec.length - 2 * border
-    const usableWid = spec.width - 2 * border
+    const spec = specById.get(layout.sheetSpecId)
+    if (!spec) {
+      throw new Error(`板材规格 ${layout.sheetSpecId} 不在排样板材库中（快照与板材库不一致，不能导出）`)
+    }
+    const usableLen = spec.length - 2 * trim
+    const usableWid = spec.width - 2 * trim
     let usedArea = 0
     const parts: ScenePart[] = layout.placements.map((p) => {
       usedArea += p.len * p.wid

@@ -4,6 +4,7 @@
  */
 import { Component, type ReactNode } from 'react'
 import { Button } from 'antd'
+import i18n from 'i18next'
 import { useAppStore } from '../features/cutting/planStore'
 
 interface Props {
@@ -53,7 +54,7 @@ export class ErrorBoundary extends Component<Props, State> {
             }}
           >
             <div style={{ fontSize: 26, marginBottom: 10 }}>⚠️</div>
-            <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 8 }}>界面出现异常</div>
+            <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 8 }}>{i18n.t('errors.boundaryTitle')}</div>
             <div
               style={{
                 fontSize: 12,
@@ -71,7 +72,7 @@ export class ErrorBoundary extends Component<Props, State> {
             </div>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
               <Button type="primary" onClick={this.reset}>
-                重试
+                {i18n.t('common.retry')}
               </Button>
               <Button
                 onClick={() => {
@@ -79,7 +80,7 @@ export class ErrorBoundary extends Component<Props, State> {
                   useAppStore.getState().navigate('projects')
                 }}
               >
-                返回项目列表
+                {i18n.t('errors.boundaryBack')}
               </Button>
             </div>
           </div>

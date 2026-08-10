@@ -54,7 +54,7 @@ export function PartsWorkspace() {
     const csv = serializePartsCsv(parts, sheetNameOf)
     const bytes = new TextEncoder().encode(csv)
     const date = new Date().toISOString().slice(0, 10)
-    void platform.saveFile(bytes, `${current?.name ?? '项目'}-零件表-${date}.csv`, 'text/csv')
+    void platform.saveFile(bytes, `${current?.name ?? 'project'}-${t('leftPanel.exportPartsFileName')}-${date}.csv`, 'text/csv')
   }
 
   const onImportFile = async (file: File) => {
@@ -96,12 +96,13 @@ export function PartsWorkspace() {
     for (const line of lines) {
       const m = line.match(/^(\S+)\s+([\d.]+)\s+([\d.]+)(?:\s+(\d+))?$/)
       if (!m) continue
-      const [, name, len, wid, qty] = m
+      const [, name, length, width, qty] = m
+      if (!name) continue // 正则组 1 必匹配，此处仅为 TS 收窄
       parsed.push({
         id: `part-${Date.now()}-${partSeq++}`,
-        name: name!,
-        length: Math.max(1, Math.round(Number(len))),
-        width: Math.max(1, Math.round(Number(wid))),
+        name,
+        length: Math.max(1, Math.round(Number(length))),
+        width: Math.max(1, Math.round(Number(width))),
         quantity: qty ? Math.max(1, parseInt(qty, 10)) : 1,
       })
     }

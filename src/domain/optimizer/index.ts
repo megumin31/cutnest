@@ -13,10 +13,10 @@ import {
   type SheetLayout,
   type SheetSpec,
 } from '../types'
-import { calcCost } from '../pricing'
+import { calcCost, edgeLengthOf } from '../pricing'
 import { iterationBudget, search, type SearchInstance } from './search'
 import { evaluatePlan } from './evaluate'
-import type { PackResult } from './stripPacker'
+import type { PackResult, SheetLibraryEntry } from './stripPacker'
 import { validatePlan } from './validator'
 import { DEFAULT_QUALITY } from '../materials'
 
@@ -48,12 +48,12 @@ export class OptimizeError extends Error {
   }
 }
 
-/** 可用区域（trim + margin 后） */
-export function usableArea(sheet: SheetSpec, settings: OptimizeSettings): { w: number; h: number; area: number } {
-  const border = settings.trimAllowance
-  const w = sheet.length - 2 * border
-  const h = sheet.width - 2 * border
-  return { w, h, area: w * h }
+/** 可用区域（trim 修边后）。len/wid = 长边（X 轴）/宽边（Y 轴）方向尺寸 */
+export function usableArea(sheet: SheetSpec, settings: OptimizeSettings): { len: number; wid: number; area: number } {
+  const trim = settings.trimAllowance
+  const len = sheet.length - 2 * trim
+  const wid = sheet.width - 2 * trim
+  return { len, wid, area: len * wid }
 }
 
 function expandInstances(parts: Part[], settings: OptimizeSettings): SearchInstance[] {
@@ -95,8 +95,12 @@ function computeStats(
   edgeBands: Map<string, ('L' | 'R' | 'T' | 'B')[]>,
 ): PlanStats {
   let usedArea = 0
+  let edgeMeters = 0
   for (const sheet of sheets) {
-    for (const pl of sheet.placements) usedArea += pl.len * pl.wid
+    for (const pl of sheet.placements) {
+      usedArea += pl.len * pl.wid
+      edgeMeters += edgeLengthOf(pl.len, pl.wid, edgeBands.get(pl.partId)) / 1000
+    }
   }
   let totalUsable = 0
   for (const sheet of sheets) totalUsable += usableAreaBySpecId.get(sheet.sheetSpecId) ?? 0
@@ -105,7 +109,8 @@ function computeStats(
 
   const score = evaluatePlan(result, minReusableWaste)
 
-  // 成本核算（按 PricingPrefs：每样精算 / 按面积 / 关闭 → 回填 stats.totalCost）
+  // 成本核算：无论 pricing.enabled 与否都计算两种计价模式（开关只影响 UI 展示）。
+  // totalCost 保持"计算时 mode 对应的值"（快照语义，历史方案与 PDF 导出沿用）
   const plan: CutPlan = {
     id: '',
     createdAt: 0,
@@ -121,14 +126,21 @@ function computeStats(
     },
     settings,
   }
-  const cost = calcCost(plan, priceBySpecId, pricing, edgeBands)
+  const costOf = (mode: 'itemized' | 'byArea'): number =>
+    calcCost(plan, priceBySpecId, { ...pricing, enabled: true, mode }, edgeBands).totalCost
+  const costItemized = costOf('itemized')
+  const costByArea = costOf('byArea')
   return {
     sheetCount: sheets.length,
     utilization,
-    totalCost: cost.totalCost,
+    totalCost: pricing.mode === 'byArea' ? costByArea : costItemized,
     wasteArea,
     reusableWasteBlocks: score.reusableWasteBlocks,
     largestReusableWaste: score.largestReusableWaste,
+    edgeMeters,
+    partArea: usedArea,
+    costItemized,
+    costByArea,
   }
 }
 
@@ -159,15 +171,15 @@ export function createOptimizer(): Optimizer {
       if (validParts.length === 0) throw new OptimizeError('NO_PARTS', '零件清单为空')
 
       // 板材库 → 可用区条目 + 面积/价格索引
-      const library: { id: string; usableW: number; usableH: number }[] = []
+      const library: SheetLibraryEntry[] = []
       const usableAreaBySpecId = new Map<string, number>()
       const priceBySpecId = new Map<string, number>()
       for (const s of sheets) {
         const usable = usableArea(s, settings)
-        if (usable.w <= EPSILON || usable.h <= EPSILON) {
-          throw new OptimizeError('SHEET_TOO_SMALL', `板材 ${s.name} 修边/留边后可用区域过小`)
+        if (usable.len <= EPSILON || usable.wid <= EPSILON) {
+          throw new OptimizeError('SHEET_TOO_SMALL', `板材 ${s.name} 修边后可用区域过小`)
         }
-        library.push({ id: s.id, usableW: usable.w, usableH: usable.h })
+        library.push({ id: s.id, usableLen: usable.len, usableWid: usable.wid })
         usableAreaBySpecId.set(s.id, usable.area)
         priceBySpecId.set(s.id, s.price)
       }
@@ -177,9 +189,10 @@ export function createOptimizer(): Optimizer {
       for (const inst of instances) {
         const fit = library.some((l) => {
           if (inst.sheetId && l.id !== inst.sheetId) return false
-          const slotW = l.usableW + settings.kerf
-          const slotH = l.usableH + settings.kerf
-          return inst.slotLen <= slotW + EPSILON && inst.slotWid <= slotH + EPSILON
+          return (
+            inst.slotLen <= l.usableLen + settings.kerf + EPSILON &&
+            inst.slotWid <= l.usableWid + settings.kerf + EPSILON
+          )
         })
         if (!fit) {
           throw new OptimizeError('PART_TOO_LARGE', `零件 ${inst.partId} 大于板材库中可用规格`)

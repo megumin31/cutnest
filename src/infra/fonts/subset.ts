@@ -50,8 +50,8 @@ export async function subsetFontToTtf(
   if (input === 0) throw new Error('hb_subset_input_create_or_fail failed')
 
   const fontPtr = hb.malloc(fontBytes.byteLength)
-  const heapu8 = new Uint8Array(hb.memory.buffer)
-  heapu8.set(new Uint8Array(fontBytes), fontPtr)
+  const heapView = new Uint8Array(hb.memory.buffer)
+  heapView.set(new Uint8Array(fontBytes), fontPtr)
 
   const blob = hb.hb_blob_create(fontPtr, fontBytes.byteLength, 2, 0, 0)
   const face = hb.hb_face_create(blob, 0)

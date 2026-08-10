@@ -29,6 +29,7 @@ export function TopBar() {
   const { message } = AntApp.useApp()
   const view = useAppStore((s) => s.view)
   const navigate = useAppStore((s) => s.navigate)
+  const back = useAppStore((s) => s.back)
   const current = useProjectStore((s) => s.current)
   const dirty = useProjectStore((s) => s.dirty)
   const renameProject = useProjectStore((s) => s.renameProject)
@@ -108,8 +109,8 @@ export function TopBar() {
 
   return (
     <div className="app-topbar">
-      {inWorkspace && (
-        <Button type="text" icon={<ArrowLeftOutlined />} onClick={() => navigate('projects')} aria-label={t('nav.projects')} />
+      {view !== 'projects' && (
+        <Button type="text" icon={<ArrowLeftOutlined />} onClick={back} aria-label={t('common.back')} />
       )}
       <div
         style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, fontSize: 15, cursor: 'pointer' }}

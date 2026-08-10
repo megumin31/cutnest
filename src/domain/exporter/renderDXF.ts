@@ -2,9 +2,10 @@
  * DXF 导出 —— 给机器执行：毫米单位、闭合轮廓、按切割顺序组织、
  * 空行程优化（最近邻 + 2-opt）、轮廓统一方向（顺铣默认）、首刀在角上。
  * 图层名/标注仅用 ASCII（行业惯例，机器不认中文）。
+ * 板材尺寸一律取自 plan.sheetLibrary（排样快照），与当前项目板材库无关。
  */
 import Drawing from 'dxf-writer'
-import type { CutPlan, SheetSpec, ExportPrefs } from '../types'
+import type { CutPlan, ExportPrefs } from '../types'
 import { toScene, type ScenePart } from './toScene'
 
 /** 图层名 ASCII 化：保留 [A-Za-z0-9_-]，其余替换为 _；空则用 partId */
@@ -87,27 +88,22 @@ export function optimizeCutOrder(starts: [number, number][]): number[] {
 }
 
 /** 生成 DXF 文本（含全部板材，板间纵向留空 100mm）。 */
-export function renderDXF(
-  plan: CutPlan,
-  sheetLibrary: SheetSpec[],
-  prefs: ExportPrefs,
-  partNames: Map<string, string>,
-): string {
-  const scene = toScene(plan, sheetLibrary, partNames)
+export function renderDXF(plan: CutPlan, prefs: ExportPrefs, partNames: Map<string, string>): string {
+  const scene = toScene(plan, plan.sheetLibrary, partNames)
   const d = new Drawing()
   d.setUnits('Millimeters')
 
   const gap = 100
   // 每板按自身宽度累加偏移（多规格板宽不同）
-  let acc = 0
+  let yOffsetAcc = 0
   const yOf = new Map<number, number>()
   for (const sc of scene) {
-    yOf.set(sc.sheetIndex, acc)
-    acc += sc.width + gap
+    yOf.set(sc.sheetIndex, yOffsetAcc)
+    yOffsetAcc += sc.width + gap
   }
   const yOffset = (sheetIdx: number) => yOf.get(sheetIdx) ?? 0
-  // 排样坐标相对可用区原点；trim/留边后必须平移到物理板绝对坐标
-  const border = plan.settings.trimAllowance
+  // 排样坐标相对可用区原点；trim 后必须平移到物理板绝对坐标
+  const trim = plan.settings.trimAllowance
 
   // 每类零件一个图层
   const layerByPart = new Map<string, string>()
@@ -131,8 +127,8 @@ export function renderDXF(
 
   // 切割顺序：以各零件起刀角（左下角）为节点做最近邻 + 2-opt
   const starts: [number, number][] = allParts.map(({ part, sheetIdx }) => [
-    part.x + border,
-    part.y + border + yOffset(sheetIdx),
+    part.x + trim,
+    part.y + trim + yOffset(sheetIdx),
   ])
   const order = optimizeCutOrder(starts)
 
@@ -141,14 +137,14 @@ export function renderDXF(
     d.setActiveLayer(layer)
     const dy = yOffset(sheetIdx)
     const contour = rectContour(part, prefs.dxf.cutDirection).map(([x, y]) => [
-      x + border,
-      y + border + dy,
+      x + trim,
+      y + trim + dy,
     ]) as [number, number][]
     d.drawPolyline(contour, true)
     // 英文标注：零件名 + 尺寸，位于零件中心
     d.drawText(
-      part.x + border + part.len / 2,
-      part.y + border + part.wid / 2 + dy,
+      part.x + trim + part.len / 2,
+      part.y + trim + part.wid / 2 + dy,
       50,
       0,
       `${asciiLayerName(part.name, part.partId)} ${Math.round(part.len)}x${Math.round(part.wid)}`,

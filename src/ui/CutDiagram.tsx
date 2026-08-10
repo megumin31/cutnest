@@ -43,8 +43,8 @@ export function CutDiagram(props: CutDiagramProps) {
       layout
         ? wasteRegionsOfLayout(
             layout.placements.map((p) => ({ x: p.x, y: p.y, len: p.len, wid: p.wid })),
-            usable.w,
-            usable.h,
+            usable.len,
+            usable.wid,
             plan.settings.kerf,
           )
         : [],
@@ -58,8 +58,8 @@ export function CutDiagram(props: CutDiagramProps) {
 
   if (!layout) return null
 
-  const viewW = usable.w
-  const viewH = usable.h
+  const viewW = usable.len
+  const viewH = usable.wid
 
   const onWheel = (e: React.WheelEvent) => {
     if (!detail) return

@@ -24,7 +24,7 @@ export interface Strip {
   h: number
 }
 
-/** 一个连通自由区域 = 若干 x 相邻条带（条带顶都到 slotH） */
+/** 一个连通自由区域 = 若干 x 相邻条带（条带顶都到槽顶 slotWid） */
 export interface WasteRegion {
   strips: Strip[]
   /** 真实并集面积（不含切缝走廊） */
@@ -38,20 +38,20 @@ function regionStrips(sheet: PackedSheet): WasteRegion[] {
   const regions: WasteRegion[] = []
   let cur: WasteRegion | null = null
   for (const seg of sheet.skyline) {
-    const h = sheet.slotH - seg.y
+    const h = sheet.slotWid - seg.y
     if (h <= EPSILON) {
       cur = null
       continue
     }
     if (cur && Math.abs(cur.strips[cur.strips.length - 1].x + cur.strips[cur.strips.length - 1].w - seg.x) <= EPSILON) {
-      cur.strips.push({ x: seg.x, y: sheet.slotH - h, w: seg.w, h })
+      cur.strips.push({ x: seg.x, y: sheet.slotWid - h, w: seg.w, h })
       cur.area += seg.w * h
       cur.bounds.w = cur.strips[cur.strips.length - 1].x + cur.strips[cur.strips.length - 1].w - cur.bounds.x
       cur.bounds.h = Math.max(cur.bounds.h, h)
-      cur.bounds.y = sheet.slotH - cur.bounds.h
+      cur.bounds.y = sheet.slotWid - cur.bounds.h
     } else {
       if (cur) regions.push(cur)
-      cur = { strips: [{ x: seg.x, y: sheet.slotH - h, w: seg.w, h }], area: seg.w * h, bounds: { x: seg.x, y: sheet.slotH - h, w: seg.w, h } }
+      cur = { strips: [{ x: seg.x, y: sheet.slotWid - h, w: seg.w, h }], area: seg.w * h, bounds: { x: seg.x, y: sheet.slotWid - h, w: seg.w, h } }
     }
   }
   if (cur) regions.push(cur)
@@ -59,16 +59,16 @@ function regionStrips(sheet: PackedSheet): WasteRegion[] {
 }
 
 /** 区域内能否容纳 s×s 方块（连续条带子段宽度 ≥ s 且段内全部高度 ≥ s） */
-function containsSquare(region: WasteRegion, s: number): boolean {
+function containsSquare(region: WasteRegion, side: number): boolean {
   const strips = region.strips
   const n = strips.length
   for (let i = 0; i < n; i++) {
-    if (strips[i].h < s - EPSILON) continue
+    if (strips[i].h < side - EPSILON) continue
     let width = 0
     for (let j = i; j < n; j++) {
-      if (strips[j].h < s - EPSILON) break
+      if (strips[j].h < side - EPSILON) break
       width += strips[j].w
-      if (width >= s - EPSILON) return true
+      if (width >= side - EPSILON) return true
     }
   }
   return false
@@ -121,10 +121,11 @@ export function evaluatePlan(result: PackResult, minReusableWaste: number): Eval
     }
   }
   // 同类接触总长越大越好 → 取负进入"越小越好"的字典序
-  const m = -contact
+  const negContact = -contact
   // 字典序严格保序：张数 1e18 > 同类聚排 1e12 > 块数 1e12 > 最大块面积 (<1e9)
-  const cost = sheetCount * 1e18 + m * 1e12 + blocks * 1e12 - largest
-  return { sheetCount, compactness: m, reusableWasteBlocks: blocks, largestReusableWaste: largest, cost }
+  // 注：SA 接受判定已改为分层（见 search.ts），本标量仅参考/兼容保留，不再参与退火
+  const cost = sheetCount * 1e18 + negContact * 1e12 + blocks * 1e12 - largest
+  return { sheetCount, compactness: negContact, reusableWasteBlocks: blocks, largestReusableWaste: largest, cost }
 }
 
 /** 字典序比较：a 优于 b 返回 >0 */
@@ -141,13 +142,13 @@ export function compareScores(a: EvalScore, b: EvalScore): number {
  */
 export function wasteRegionsOfLayout(
   placements: { x: number; y: number; len: number; wid: number }[],
-  usableW: number,
-  usableH: number,
+  usableLen: number,
+  usableWid: number,
   kerf: number,
 ): WasteRegion[] {
-  const slotW = usableW + kerf
-  const slotH = usableH + kerf
-  let skyline: { x: number; y: number; w: number }[] = [{ x: 0, y: 0, w: slotW }]
+  const slotLen = usableLen + kerf
+  const slotWid = usableWid + kerf
+  let skyline: { x: number; y: number; w: number }[] = [{ x: 0, y: 0, w: slotLen }]
   for (const pl of placements) {
     const w = pl.len + kerf
     const h = pl.wid + kerf
@@ -189,10 +190,10 @@ export function wasteRegionsOfLayout(
     }
     skyline = merged
   }
-  const sheet: PackedSheet = { sheetSpecId: '', placements: [], skyline, slotW, slotH }
+  const sheet: PackedSheet = { sheetSpecId: '', placements: [], skyline, slotLen, slotWid }
   const regions = regionStrips(sheet)
   // 槽空间 → 真实空间：条带底 = 槽顶 - kerf（= 该处零件真实顶）；
-  // 顶部保持到 slotH，渲染时由 viewBox 裁剪（slotH - usableH = kerf），不产生白缝
+  // 顶部保持到槽顶 slotWid，渲染时由 viewBox 裁剪（slotWid - usableWid = kerf），不产生白缝
   const real: WasteRegion[] = []
   for (const r of regions) {
     const strips = r.strips.map((s) => ({ ...s, y: s.y - kerf }))

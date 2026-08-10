@@ -68,8 +68,8 @@ describe('optimizer 基础排样', () => {
   it('修边余量生效：可用区域缩小', () => {
     const u0 = usableArea(sheet, settings({ trimAllowance: 0 }))
     const u1 = usableArea(sheet, settings({ trimAllowance: 10 }))
-    expect(u1.w).toBe(u0.w - 20)
-    expect(u1.h).toBe(u0.h - 20)
+    expect(u1.len).toBe(u0.len - 20)
+    expect(u1.wid).toBe(u0.wid - 20)
   })
 
   it('相邻零件净距 ≥ kerf（=3）', async () => {
@@ -86,6 +86,40 @@ describe('optimizer 基础排样', () => {
     const gy = Math.max(a0.y, a1.y) - Math.min(a0.y + a0.wid, a1.y + a1.wid)
     expect(Math.max(gx, gy)).toBeCloseTo(3, 5)
     expect(validatePlan(plan, parts, [sheet], settings()).ok).toBe(true)
+  })
+
+  it('stats 含零件总面积与封边米数（排样快照）', async () => {
+    const parts: Part[] = [
+      { id: 'a', name: 'A', length: 1200, width: 400, quantity: 2, edgeBand: ['L', 'R'] },
+      { id: 'b', name: 'B', length: 600, width: 300, quantity: 1 },
+    ]
+    const plan = await run(parts, settings())
+    // 零件总面积 = Σ 已排入实例面积（mm²）
+    const placed = plan.sheets.flatMap((s) => s.placements)
+    const area = placed.reduce((s, p) => s + p.len * p.wid, 0)
+    expect(plan.stats.partArea).toBe(area)
+    // a：L+R 封边 = 2×400mm = 0.8m/块 × 2 块 = 1.6m；b 无封边
+    expect(plan.stats.edgeMeters).toBeCloseTo(1.6, 6)
+  })
+
+  it('价格核算关闭时仍计算两种计价模式成本（开关只影响展示）', async () => {
+    const parts: Part[] = [
+      { id: 'a', name: 'A', length: 2000, width: 1000, quantity: 1, edgeBand: ['T', 'B'] },
+    ]
+    const pricing = {
+      enabled: false,
+      mode: 'itemized' as const,
+      edgePricePerM: 2,
+      processingFeePerSheet: 15,
+      areaPricePerSqm: 120,
+    }
+    const plan = await createOptimizer().optimize({ parts, sheets: [sheet], settings: settings(), pricing })
+    // itemized：板费 100 + 封边 2×2m×2 元 + 加工费 15 = 100 + 8 + 15 = 123
+    expect(plan.stats.costItemized).toBeCloseTo(123, 5)
+    // byArea：2 m² × 120 = 240
+    expect(plan.stats.costByArea).toBeCloseTo(240, 5)
+    // totalCost = 计算时 mode（itemized）的值
+    expect(plan.stats.totalCost).toBe(plan.stats.costItemized)
   })
 })
 
@@ -238,16 +272,16 @@ describe('评价函数字典序（已知最优解小用例）', () => {
   it('余料条带底部紧贴零件顶部（无 kerf 白色缝隙）', () => {
     // 2 个 1000×500 并排（槽 1003×503）→ 槽顶 y=503，真实零件顶 500
     // 余料条带应从 y=500 画到板顶 1220（中间不得留 kerf 白缝）
-    const usableW = 2440
-    const usableH = 1220
+    const usableLen = 2440
+    const usableWid = 1220
     const kerf = 3
     const regions = wasteRegionsOfLayout(
       [
         { x: 0, y: 0, len: 1000, wid: 500 },
         { x: 1003, y: 0, len: 1000, wid: 500 },
       ],
-      usableW,
-      usableH,
+      usableLen,
+      usableWid,
       kerf,
     )
     const coverStrips = regions.flatMap((r) => r.strips.filter((s) => s.x < 2006))
@@ -273,8 +307,8 @@ describe('评价函数字典序（已知最优解小用例）', () => {
         { x: 0, y: 303, w: 806 },
         { x: 806, y: 0, w: 1600 },
       ],
-      slotW: 2443,
-      slotH: 1223,
+      slotLen: 2443,
+      slotWid: 1223,
     })
     const groupedA: PackedSheet[] = [sheetA(), sheetA()]
     const scatteredB: PackedSheet[] = [
@@ -285,16 +319,16 @@ describe('评价函数字典序（已知最优解小用例）', () => {
           { x: 0, y: 303, w: 403 },
           { x: 403, y: 0, w: 2000 },
         ],
-        slotW: 2443,
-        slotH: 1223,
+        slotLen: 2443,
+        slotWid: 1223,
       },
       // 第二板余料全高 100：无 ≥200×200 的余料块
       {
         sheetSpecId: 's1',
         placements: [{ item: mkItem('a'), x: 0, y: 0 }],
         skyline: [{ x: 0, y: 1123, w: 2400 }],
-        slotW: 2443,
-        slotH: 1223,
+        slotLen: 2443,
+        slotWid: 1223,
       },
     ]
     const scoreA = evaluatePlan({ sheets: groupedA }, 200)

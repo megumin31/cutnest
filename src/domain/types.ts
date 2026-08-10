@@ -104,6 +104,14 @@ export interface PlanStats {
   reusableWasteBlocks: number
   /** 最大可再利用余料块面积 mm²（越大越好） */
   largestReusableWaste: number
+  /** 零件封边总长度（米）——排样时快照，历史方案查看/导出不依赖当前零件表 */
+  edgeMeters?: number
+  /** 零件实际总面积 mm²（quantity 展开后全部实例） */
+  partArea?: number
+  /** 每样精算（itemized）总成本——与开关无关，排样时始终计算；UI 按当前计价模式展示 */
+  costItemized?: number
+  /** 按面积计价（byArea）总成本——同上 */
+  costByArea?: number
 }
 
 /** 导出偏好（项目级，不含排样数据；项目下所有历史方案共享） */

@@ -157,12 +157,33 @@ export type AppView = 'projects' | 'workspace' | 'account' | 'settings'
 
 interface AppState {
   view: AppView
+  /** 进入当前视图前的视图（返回按钮用；仅 account/settings 跳转时记录） */
+  prevView: AppView | null
   workspaceProjectId: string | null
   navigate: (view: AppView, projectId?: string) => void
+  /** 返回上一视图：account/settings 恢复来源；workspace 回项目列表 */
+  back: () => void
 }
 
-export const useAppStore = create<AppState>((set) => ({
+export const useAppStore = create<AppState>((set, get) => ({
   view: 'projects',
+  prevView: null,
   workspaceProjectId: null,
-  navigate: (view, projectId) => set({ view, workspaceProjectId: projectId ?? null }),
+  navigate: (view, projectId) =>
+    set((s) => ({
+      view,
+      prevView: view !== s.view ? s.view : s.prevView,
+      // 仅 workspace 需要 projectId；跳转 account/settings 时保留，返回工作区不丢上下文
+      workspaceProjectId: projectId !== undefined ? projectId : s.workspaceProjectId,
+    })),
+  back: () => {
+    const s = get()
+    if (s.view === 'workspace') {
+      set({ view: 'projects', workspaceProjectId: null, prevView: null })
+    } else if (s.prevView) {
+      set({ view: s.prevView, prevView: null })
+    } else {
+      set({ view: 'projects', prevView: null })
+    }
+  },
 }))
