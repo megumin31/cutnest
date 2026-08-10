@@ -34,7 +34,7 @@ export async function createProject(name: string, existing?: Partial<Project>): 
     sheets: sheets.length > 0 ? sheets : [DEFAULT_SHEETS[0]],
     settings,
     exportPrefs: {
-      pdf: { watermark: { enabled: true, text: '' }, companyInfo: { name: '' } },
+      pdf: { watermark: { enabled: false, text: '' }, companyInfo: { name: '' } },
       dxf: { cutDirection: 'climb' },
       unit: 'mm',
     },

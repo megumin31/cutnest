@@ -12,7 +12,6 @@ import { usePlanStore } from '../features/cutting/planStore'
 import { useAuthStore } from '../features/licensing/authStore'
 import { useSettingsStore } from '../features/settings/settingsStore'
 import { exportPdf, exportDxf, partNamesOf } from './exportActions'
-import { planCost } from '../domain/pricing'
 import type { PlanRecord } from '../domain/types'
 
 export function HistoryPanel() {
@@ -21,7 +20,6 @@ export function HistoryPanel() {
   const current = useProjectStore((s) => s.current)
   const auth = useAuthStore((s) => s.status)
   const exportLang = useSettingsStore((s) => s.settings.exportLang)
-  const pricing = useSettingsStore((s) => s.settings.pricing)
 
   const [records, setRecords] = useState<PlanRecord[]>([])
   const [collapsed, setCollapsed] = useState(true)
@@ -53,6 +51,9 @@ export function HistoryPanel() {
     usePlanStore.getState().setPlan(r.plan)
     usePlanStore.getState().setStatus('done')
     usePlanStore.getState().setSheetIndex(0)
+    usePlanStore.getState().setEditMode(false)
+    usePlanStore.getState().setSelectedPart(null)
+    usePlanStore.getState().setHoverPart(null)
   }
 
   const onExport = async (r: PlanRecord, kind: 'pdf' | 'dxf') => {
@@ -103,8 +104,7 @@ export function HistoryPanel() {
                   <div style={{ fontWeight: 500 }}>{new Date(r.createdAt).toLocaleString()}</div>
                   <div style={{ color: 'var(--text-secondary)', fontSize: 12 }}>
                     {t('statusbar.sheets', { count: r.plan.stats.sheetCount })} ·{' '}
-                    {t('statusbar.utilization', { pct: r.plan.stats.utilization.toFixed(1) })} · ¥
-                    {planCost(r.plan.stats, pricing).toFixed(0)}
+                    {t('statusbar.utilization', { pct: r.plan.stats.utilization.toFixed(1) })}
                   </div>
                 </div>
                 <Dropdown

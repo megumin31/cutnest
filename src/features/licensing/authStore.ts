@@ -161,8 +161,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (s.state !== 'loggedIn') return
     try {
       const r = await api.buy(s.token, 'license')
-      set({ status: { ...s, paid: r.paid } })
-      await storage.setAuth({ ...s, paid: r.paid })
+      const next: AuthStatus = { ...s, paid: r.paid, credits: r.credits }
+      set({ status: next })
+      await storage.setAuth(next)
     } catch (e) {
       set({ error: e instanceof ApiError ? e.message : '购买失败' })
     }

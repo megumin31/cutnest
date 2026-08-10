@@ -35,7 +35,7 @@ async function seedDemoProject() {
   demo.settings = createDefaultSettings()
   demo.exportPrefs = {
     pdf: {
-      watermark: { enabled: true, text: '' },
+      watermark: { enabled: false, text: '' },
       companyInfo: { name: '', address: '', phone: '' },
     },
     dxf: { cutDirection: 'climb' },
