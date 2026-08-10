@@ -9,7 +9,7 @@
 
 木工裁板优化商业软件：输入零件清单（部件）和板材规格，自动计算最优排布方案（用板最少、余料最集中），输出给客户看的图纸（PDF）和给机器执行的切割文件（DXF）。
 
-**目标平台**：Web、Windows、Linux（未来可能 iOS）
+**目标平台**：Web、Windows、Linux、**Android（必做，Tauri 原生打包，重要性与 Windows 同等）**、iOS（后续评估）
 **核心定位**：单机优先。计算全部本地运行，离线可用。服务端承载三个服务：账号/授权 + AI 手写部件单识别 + 付费。
 
 ## 2. 商业模型
@@ -18,13 +18,14 @@
 |---|---|---|
 | 桌面端（Windows/Linux） | **买断制** | 账号登录后长期凭证离线可用；同一账号最多同时登录 3 台设备 |
 | Web 端 | **付费解锁** | 免费 = 体验版（≤20 零件 + PDF 品牌水印 + 无 DXF）；登录付费账号后全功能 |
+| Android 移动端（原生应用） | **付费解锁** | 与 Web 端同一功能闸门（免费 = 体验版；登录付费账号后全功能）；买断标记挂账号，买断用户移动端同样全功能 |
 | AI 手写部件单识别 | **增值按量计费** | 按次扣费（**成功才扣**），买断版附赠初始次数 |
 
 **关键决策：账号系统。** 支持**邮箱注册（密码）+ Google 账号**两种登录。身份 = 账号，买断标记与识别次数余额都挂账号，天然多端共享。盗版用户只能用核心功能、用不了增值服务——盗版是转化通道。
 
 **功能闸门按付费分，不按端分**：登录 + 买断后 Web 和桌面全部功能可用；未登录/未付费在所有端都是体验版。
 
-**设备限制**：同一账号最多**同时登录 3 台设备**（桌面/Web/iOS 合计），滚动淘汰（最新 3 台）。
+**设备限制**：同一账号最多**同时登录 3 台设备**（桌面/Web/Android 合计；iOS 上线后纳入），滚动淘汰（最新 3 台）。
 
 ## 3. 技术栈（定稿）
 
@@ -36,7 +37,8 @@
 | 状态管理 | Zustand（按 feature 拆分 store） | 轻量 |
 | 本地存储 | Dexie (IndexedDB) | Web 与 Tauri webview 通用，离线可用 |
 | 计算并发 | Web Worker（web）/ Tauri command（桌面，未来） | 几百零件不卡 UI |
-| 桌面壳 | **Tauri 2** | 5~15MB 安装包（不含字体资源，见 §6.3 约 +30MB）、低内存、同一代码可出 iOS |
+| 桌面壳 / 移动端 | **Tauri 2** | 5~15MB 安装包（不含字体资源，见 §6.3 约 +30MB）、低内存；Windows/Linux 桌面与 Android 原生打包共用同一套壳与适配器（同一代码后续可出 iOS）；已知代价：Android WebView 渲染性能弱于 Chrome 直跑（切割图降级 + quality 降档应对，见阶段 11） |
+| Web 附加能力 | **PWA**（Service Worker + Web App Manifest） | Web 端同时提供可安装/离线/扫码即用能力——补充分发渠道（微信/浏览器直达），**非移动端主线**；拍照（<input capture>）与文件分享（Web Share API）仅 PWA/浏览器环境使用 |
 | Web 托管 | Cloudflare Pages | 免费静态托管 |
 | 服务端函数 | Cloudflare Workers | 免费 10 万次请求/天 |
 | 服务端数据库 | Cloudflare D1 (SQLite) | 免费 5GB / 500 万行读每天 |
@@ -117,12 +119,12 @@ interface Part {
   note?: string
 }
 
-// 板材规格 —— 约定 length ≥ width，长边为 X 轴（算法对称性剪枝的前提）
+// 板材规格 —— "长度/宽度"与零件同语义：方向标签（长度边沿 X 轴、宽度边沿 Y 轴），不要求 length ≥ width
 interface SheetSpec {
   id: string
-  name: string                 // "2440×1220 颗粒板"
-  length: number               // 长边，如 2440
-  width: number                // 宽边，如 1220
+  name: string                 // "颗粒板"（尺寸由独立字段表达，名称不含规格，避免与长宽属性重复）
+  length: number               // 长度（X 轴方向），如 2440
+  width: number                // 宽度（Y 轴方向），如 1220
   price: number                // 元/张，供成本核算
 }
 
@@ -154,8 +156,8 @@ interface SheetLayout {
 interface Placement {
   partId: string
   instance: number             // 该零件的第几块（quantity 展开后）
-  x: number; y: number         // 左下角坐标（X 沿板材长边）
-  len: number; wid: number     // 实际摆放后的长边/宽边（可能已旋转）
+  x: number; y: number         // 左下角坐标（X 沿板材长度方向）
+  len: number; wid: number     // 实际摆放后的长度/宽度方向尺寸（可能已旋转）
   rotated: boolean
 }
 interface PlanStats {
@@ -380,7 +382,7 @@ export function formatLength(mm: number, unit: 'mm'|'cm'|'in', precision?: numbe
 
 ### 8.4 `platform/` — Web/Tauri 适配
 - `isDesktop(): boolean`
-- `saveFile(bytes, filename)`：Web=浏览器下载，Tauri=原生保存对话框
+- `saveFile(bytes, filename)`：Web=浏览器下载（PWA 环境追加 Web Share API 分享入口，一键分享微信/QQ/邮件）；Tauri=原生保存对话框（Android 走 SAF 系统文件选择器，另提供分享面板入口）
 - `print()`：Web=window.print，Tauri=原生打印
 - `getDeviceFingerprint(): string` —— **设备指纹按端降级**：
   - 桌面：主板序列号 + 磁盘序列号 + MAC 组合（硬件级，不可伪造）
@@ -425,7 +427,7 @@ recognize_logs ( user_id, image_hash, ts, status, error_code )
 **授权体系：账号登录 + 长期凭证 + 设备滚动列表**
 - 登录：邮箱密码 或 Google OAuth → 服务端签发**长期凭证**（Ed25519 签名 token，含有效期 180 天）
 - 桌面离线：登录后本地存凭证 → 离线期间本地验签可用 → 每 24h/启动时联网刷新 → **180 天不联网才需重新登录**（木工车间场景几乎碰不到）
-- **设备限制：同一账号最多同时登录 3 台**（桌面/Web/iOS 合计）——每次登录/心跳把设备指纹写入 `devices`（去重）→ 超 3 台踢 `last_seen_at` 最旧 → 被踢设备下次联网发现不在列表 → 本地失效并提示重新登录
+- **设备限制：同一账号最多同时登录 3 台**（桌面/Web/Android 合计；iOS 上线后纳入）——每次登录/心跳把设备指纹写入 `devices`（去重）→ 超 3 台踢 `last_seen_at` 最旧 → 被踢设备下次联网发现不在列表 → 本地失效并提示重新登录
 - Web 端也占设备名额（登录态存 cookie/token），换浏览器/清缓存 = 重新登录（账号系统下重登成本低，无"找激活码"问题）
 - 未登录 = 体验版（≤20 零件 + 水印 + 无 DXF）；登录 + paid = 全功能
 - 防破解边界：**完全不联网的盗版环境防不住**——物理极限，接受（联网即被治理；付费识别按账号扣余额，盗版账号没有余额 = 转化通道）
@@ -494,12 +496,13 @@ export function getOcrProvider(env: Env): OcrProvider  // 按 env.OCR_PROVIDER �
 | 8 | 服务端（auth/oauth/heartbeat/recognize/buy）+ licensing（登录/设备管理） | 商业化闭环 |
 | 9 | recognition 特性（拍照→审查→导入） | 增值服务上线 |
 | 10 | 打磨（打印、导出偏好、i18n 翻译分批、Google OAuth 完善、历史方案上限策略） | 收尾 |
+| 11 | Android 原生打包（Tauri APK）：相机插件（Kotlin，兜底 input capture）+ 文件保存走 SAF + 分享面板（导出后一键分享微信/QQ/邮件）+ Android 设备指纹（私有存储 UUID + Android ID）+ 切割图移动端降级（静态预览/分板查看）+ quality 默认降档 + minSdk 策略 + 真机 500 零件基准实测；Web 端同步补 PWA 能力（manifest + SW 离线预缓存 + 安装引导，作为补充分发渠道） | **Android 必做（与 Windows 同等重要）**；依赖 8/9 服务端与识别链路完备后价值最大，亦可提前并行验证 |
 
 ## 12. 领域术语表
 
 | 术语 | 含义 |
 |---|---|
-| 长 / 宽 | 零件与板材一律"长×宽"。长度 = 纹理方向轴，板材长边为 X 轴 |
+| 长 / 宽 | 零件与板材一律"长×宽"（**不是**宽×高），两者同语义：**方向标签**——长度边沿 X 轴（纹理方向）、宽度边沿 Y 轴，不要求 length ≥ width |
 | 切缝 | 统一参数：精密锯的锯缝 / 雕刻机的刀径，本质都是"每刀吃掉多宽"；零件间净距 = kerf |
 | 满长件 | 长度 = 板材长度的部件（如 2440×400 侧板） |
 | 余料集中 | 同板数下，可再利用余料块数越少、最大块越大越好；碎料（<minReusableWaste）算废料 |
@@ -519,6 +522,7 @@ export function getOcrProvider(env: Env): OcrProvider  // 按 env.OCR_PROVIDER �
 - ✅ PDF 国际化 v1：13 门语言（英/德/法/意/西/波兰/俄/乌克兰/越/中/日/韩/泰），字体分组 + 运行时子集化；桌面全量打包 ~30MB，Web 导出时按需下载缓存
 - ✅ OCR 供应商抽象：环境变量切换，不写死 Qwen
 - ✅ 扣次规则：成功才扣 + 幂等去重
+- ✅ 目标平台优先级：**Android 与 Windows 同等必做**，路线 = **Tauri 原生打包（APK）**（见 §3；Tauri 同一代码可出 iOS，为 iOS 留后路）；**Web 端同时具备 PWA 能力**（可安装/离线/扫码即用，补充分发渠道，非移动端主线）；**iOS 为后续考虑**（已知风险：iOS 系统可能回收 7 天不活跃站点的 IndexedDB 数据）
 
 **待确认（v1 开工前不阻塞，默认值先按下方括号内假设实现）：**
 - 异形零件（圆弧/斜角）为 v2 预留，v1 仅矩形

@@ -86,6 +86,31 @@ describe('calcCost · 按面积计价（byArea）', () => {
   })
 })
 
+describe('calcCost · 旋转与方向标签', () => {
+  it('旋转零件的封边按未旋转尺寸计算（T/B=length、L/R=width）', () => {
+    // 零件 length=1200, width=400（未旋转标签）全封边；摆位旋转 90° 后 pl.len=400, pl.wid=1200
+    const p = plan([{ partId: 'a', instance: 0, x: 0, y: 0, len: 400, wid: 1200, rotated: true }])
+    const dims = new Map<string, [number, number]>([['a', [1200, 400]]])
+    const c = calcCost(p, price, prefs({ edgePricePerM: 1, processingFeePerSheet: 0 }), edgeBands, dims)
+    // 全封边：T/B 长度方向 2×1200 + L/R 宽度方向 2×400 = 3200mm = 3.2m
+    expect(c.edgeCost).toBeCloseTo(3.2, 6)
+  })
+
+  it('width > length 时按方向属性计边（与长短无关）', () => {
+    // 用户输入 length=400, width=1200：T/B=400mm 边、L/R=1200mm 边
+    const p = plan([{ partId: 'a', instance: 0, x: 0, y: 0, len: 400, wid: 1200, rotated: false }])
+    const dims = new Map<string, [number, number]>([['a', [400, 1200]]])
+    const c = calcCost(p, price, prefs({ edgePricePerM: 1, processingFeePerSheet: 0 }), edgeBands, dims)
+    expect(c.edgeCost).toBeCloseTo(3.2, 6)
+  })
+
+  it('缺省 partDims 时回退摆位尺寸（兼容旧调用）', () => {
+    const p = plan([{ partId: 'a', instance: 0, x: 0, y: 0, len: 1200, wid: 400, rotated: false }])
+    const c = calcCost(p, price, prefs({ edgePricePerM: 1, processingFeePerSheet: 0 }), edgeBands)
+    expect(c.edgeCost).toBeCloseTo(3.2, 6)
+  })
+})
+
 describe('calcCost · 关闭与分摊', () => {
   it('关闭价格核算：totalCost 为 0，无分摊', () => {
     const p = plan([

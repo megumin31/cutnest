@@ -12,9 +12,13 @@ export interface Part {
   id: string
   /** "侧板"、"抽屉面板"… */
   name: string
-  /** 长 (mm，整数) */
+  /**
+   * 长度方向的尺寸 (mm，整数)。"长度/宽度"是**方向标签**而非长短：
+   * 长度边沿 X 轴（纹理方向）、宽度边沿 Y 轴，不要求 length ≥ width
+   * （用户可能输入宽度大于长度的数值）。
+   */
   length: number
-  /** 宽 (mm，整数) */
+  /** 宽度方向的尺寸 (mm，整数)，沿 Y 轴；不要求 ≤ length */
   width: number
   quantity: number
   /** 旋转标记：'any' = 允许 90° 旋转；缺省 / 'alongLength' = 禁止旋转（默认） */
@@ -26,14 +30,14 @@ export interface Part {
   note?: string
 }
 
-/** 板材规格 —— 约定 length ≥ width，长边为 X 轴（算法对称性剪枝的前提） */
+/** 板材规格 —— "长度/宽度"与零件同语义：方向标签（长度边沿 X 轴、宽度边沿 Y 轴），不要求 length ≥ width */
 export interface SheetSpec {
   id: string
   /** "颗粒板"（尺寸由独立字段表达，名称不含规格，避免与长宽属性重复） */
   name: string
-  /** 长边，如 2440 */
+  /** 长度（X 轴方向），如 2440 */
   length: number
-  /** 宽边，如 1220 */
+  /** 宽度（Y 轴方向），如 1220 */
   width: number
   /** 元/张，供成本核算 */
   price: number
@@ -82,10 +86,10 @@ export interface Placement {
   partId: string
   /** 该零件的第几块（quantity 展开后） */
   instance: number
-  /** 左下角坐标（X 沿板材长边） */
+  /** 左下角坐标（X 沿板材长度方向） */
   x: number
   y: number
-  /** 实际摆放后的长边/宽边（可能已旋转） */
+  /** 实际摆放后的长度/宽度方向尺寸（可能已旋转） */
   len: number
   wid: number
   rotated: boolean

@@ -6,7 +6,7 @@
  * 切缝处理：零件在"槽空间"中占 (len+kerf)×(wid+kerf)，板材槽空间 = (len+kerf)×(wid+kerf)，
  * 等价于零件间净距恒为 kerf、板边无间距（边缘预留由 trimAllowance 表达）。
  *
- * 命名约定：实体规格（零件/板材/槽空间/可用区）一律用 len/wid（长×宽，领域术语，len ≥ wid）；
+ * 命名约定：实体规格（零件/板材/槽空间/可用区）一律用 len/wid（长度×宽度，方向标签，不保证 len ≥ wid）；
  * 纯几何矩形（skyline 条带段、余料条带、外接框、bestFit 的待放矩形参数）用 w/h
  * （坐标尺寸，无姿态，x↔w、y↔h）。两者语义不同，勿强行统一。
  */
@@ -31,9 +31,9 @@ export interface PackItem {
 /** 板材库条目（可用区，trim 已扣除） */
 export interface SheetLibraryEntry {
   id: string
-  /** 可用区长（X 轴，长边方向） */
+  /** 可用区长度（X 轴，长度方向） */
   usableLen: number
-  /** 可用区宽（Y 轴，宽边方向） */
+  /** 可用区宽度（Y 轴，宽度方向） */
   usableWid: number
 }
 

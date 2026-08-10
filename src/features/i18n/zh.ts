@@ -68,7 +68,7 @@ export const zh = {
     width: '宽度',
     quantity: '数量',
     rotation: '旋转',
-    rotationHint: '勾选后该零件可 90° 旋转（默认不勾选 = 纹理固定顺长边）',
+    rotationHint: '勾选后该零件可 90° 旋转（默认不勾选 = 纹理固定沿长度方向）',
     rotationBulk: '批量设置旋转',
     bulkRotationResult: '已批量设置 {{count}} 个零件的旋转',
     edgeBand: '封边',

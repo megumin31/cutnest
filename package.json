@@ -1,7 +1,7 @@
 {
   "name": "cutnest",
   "private": true,
-  "version": "0.0.1",
+  "version": "0.0.2",
   "type": "module",
   "description": "CutNest — 木工裁板优化：本地计算最优排布（板材最省、余料最集中），输出 PDF 交付图纸与 DXF 数控切割文件",
   "scripts": {

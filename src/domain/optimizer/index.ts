@@ -48,7 +48,7 @@ export class OptimizeError extends Error {
   }
 }
 
-/** 可用区域（trim 修边后）。len/wid = 长边（X 轴）/宽边（Y 轴）方向尺寸 */
+/** 可用区域（trim 修边后）。len/wid = 长度（X 轴）/宽度（Y 轴）方向尺寸 */
 export function usableArea(sheet: SheetSpec, settings: OptimizeSettings): { len: number; wid: number; area: number } {
   const trim = settings.trimAllowance
   const len = sheet.length - 2 * trim
@@ -93,13 +93,16 @@ function computeStats(
   settings: OptimizeSettings,
   pricing: PricingPrefs,
   edgeBands: Map<string, ('L' | 'R' | 'T' | 'B')[]>,
+  /** 零件未旋转尺寸 partId → [length, width]（方向标签；edgeLengthOf 要求未旋转尺寸） */
+  partDims: Map<string, [number, number]>,
 ): PlanStats {
   let usedArea = 0
   let edgeMeters = 0
   for (const sheet of sheets) {
     for (const pl of sheet.placements) {
       usedArea += pl.len * pl.wid
-      edgeMeters += edgeLengthOf(pl.len, pl.wid, edgeBands.get(pl.partId)) / 1000
+      const dim = partDims.get(pl.partId)
+      edgeMeters += edgeLengthOf(dim ? dim[0] : pl.len, dim ? dim[1] : pl.wid, edgeBands.get(pl.partId)) / 1000
     }
   }
   let totalUsable = 0
@@ -127,7 +130,7 @@ function computeStats(
     settings,
   }
   const costOf = (mode: 'itemized' | 'byArea'): number =>
-    calcCost(plan, priceBySpecId, { ...pricing, enabled: true, mode }, edgeBands).totalCost
+    calcCost(plan, priceBySpecId, { ...pricing, enabled: true, mode }, edgeBands, partDims).totalCost
   const costItemized = costOf('itemized')
   const costByArea = costOf('byArea')
   return {
@@ -242,6 +245,7 @@ export function createOptimizer(): Optimizer {
           settings,
           pricing,
           new Map(validParts.map((p) => [p.id, p.edgeBand ?? []])),
+          new Map(validParts.map((p) => [p.id, [p.length, p.width]])),
         ),
         settings,
       }

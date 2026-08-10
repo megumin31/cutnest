@@ -102,6 +102,20 @@ describe('optimizer 基础排样', () => {
     expect(plan.stats.edgeMeters).toBeCloseTo(1.6, 6)
   })
 
+  it('旋转封边件的 edgeMeters 按未旋转尺寸统计（方向标签语义）', async () => {
+    const parts: Part[] = [
+      { id: 'a', name: 'A', length: 2000, width: 500, quantity: 8, grain: 'any', edgeBand: ['L', 'R'] },
+      { id: 'b', name: 'B', length: 900, width: 600, quantity: 14, grain: 'any', edgeBand: ['T', 'B'] },
+      { id: 'c', name: 'C', length: 600, width: 400, quantity: 30, grain: 'any', edgeBand: ['L'] },
+    ]
+    const plan = await run(parts, settings({ seed: 1 }))
+    // a：L/R 宽度方向 2×500×8 = 8000mm；b：T/B 长度方向 2×900×14 = 25200mm；c：L 宽度方向 400×30 = 12000mm
+    expect(plan.stats.edgeMeters).toBeCloseTo(45.2, 6)
+    // 用例确实覆盖旋转路径（seed=1 时该零件集存在旋转实例）
+    const rotated = plan.sheets.flatMap((s) => s.placements).some((p) => p.rotated)
+    expect(rotated).toBe(true)
+  })
+
   it('价格核算关闭时仍计算两种计价模式成本（开关只影响展示）', async () => {
     const parts: Part[] = [
       { id: 'a', name: 'A', length: 2000, width: 1000, quantity: 1, edgeBand: ['T', 'B'] },

@@ -416,8 +416,9 @@ function drawSheetPage(
     doc.roundedRect(px, py, pw, ph, rx, rx, 'FD')
 
     // 封边标注：加粗深色线画在需封边的边上（边内 0.55mm 内侧，视觉上"该边加厚"）。
-    // 约定：T/B = len 方向两条长边、L/R = wid 方向两条短边；零件旋转 90° 后
-    //   B→左竖边、T→右竖边、L→下横边、R→上横边（与未旋转时 T/B 上下、L/R 左右一致）
+    // 约定：T/B = 长度方向的边（沿 X 轴）、L/R = 宽度方向的边（沿 Y 轴）；
+    // 零件旋转 90° 后 B→左竖边、T→右竖边、L→下横边、R→上横边
+    //   （T/B 仍是"长度方向"的物理边、L/R 仍是"宽度方向"的物理边）
     const band = p.edgeBand ?? []
     if (band.length > 0) {
       doc.setDrawColor(24, 24, 27)

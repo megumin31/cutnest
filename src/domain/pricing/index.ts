@@ -27,7 +27,12 @@ export function planCost(stats: PlanStats, prefs: PricingPrefs): number {
   return stats.costByArea ?? stats.totalCost
 }
 
-/** 零件封边长度（mm）：edgeBand 相对零件本体 —— L/R 是左右短边（宽向）、T/B 是上下长边（长向），旋转不影响 */
+/**
+ * 零件封边长度（mm）：edgeBand 相对零件本体，按"方向"而非"长短"定义 ——
+ * T/B = 长度方向的边（沿 X 轴）、L/R = 宽度方向的边（沿 Y 轴）；
+ * 旋转只改变摆放姿态、不改变边（与 PDF 标注一致）。
+ * 注意：len/wid 参数必须是零件**未旋转**的 length/width（摆位尺寸在旋转后会互换，导致计费错误）。
+ */
 export function edgeLengthOf(len: number, wid: number, bands: ('L' | 'R' | 'T' | 'B')[] | undefined): number {
   if (!bands || bands.length === 0) return 0
   let l = 0
@@ -42,6 +47,8 @@ export function calcCost(
   priceBySpecId: Map<string, number>,
   prefs: PricingPrefs,
   edgeBands?: Map<string, ('L' | 'R' | 'T' | 'B')[]>,
+  /** 零件未旋转尺寸 partId → [length, width]（方向标签，非长短）；缺省回退摆位尺寸（仅兼容旧调用） */
+  partDims?: Map<string, [number, number]>,
 ): CostBreakdown {
   const sheetCount = plan.sheets.length
   let usedArea = 0
@@ -60,7 +67,8 @@ export function calcCost(
           const a = pl.len * pl.wid
           usedArea += a
           perPartArea[pl.partId] = (perPartArea[pl.partId] ?? 0) + a
-          const el = edgeLengthOf(pl.len, pl.wid, edgeBands?.get(pl.partId))
+          const dim = partDims?.get(pl.partId)
+          const el = edgeLengthOf(dim ? dim[0] : pl.len, dim ? dim[1] : pl.wid, edgeBands?.get(pl.partId))
           if (el > 0) edgeCost += (el / 1000) * prefs.edgePricePerM
         }
       }
