@@ -24,7 +24,7 @@ interface PlanState {
   /** 编辑态/结果态切换（结果态可一键回到零件工作区） */
   editMode: boolean
   task: OptimizeTask | null
-  /** 任务序号：run/cancel/reset 自增；回调按序号丢弃过期任务（防旧任务 CANCELLED 覆盖新任务状态） */
+  /** 任务序号：run/cancel/reset/openHistory 经 invalidateTask 自增；回调按序号丢弃过期任务（防旧任务 CANCELLED/result 覆盖新状态） */
   runSeq: number
   /** 当前展示方案的零件名快照（partId → name；run 写入项目快照、历史打开写入 record.partNames）——展示与导出不依赖当前零件表 */
   planPartNames: Record<string, string> | null
@@ -35,6 +35,8 @@ interface PlanState {
   /** 发起计算（Web Worker 线程内执行，主线程不卡） */
   run: (project: Project) => void
   cancel: () => void
+  /** 作废当前任务：取消 + 令牌自增 + 清引用（run/cancel/reset/openHistory 共用，杜绝"取消但回调未作废"） */
+  invalidateTask: () => void
   setPlan: (plan: CutPlan) => void
   setStatus: (s: ComputeStatus) => void
   setProgress: (p: number) => void
@@ -70,7 +72,7 @@ export const usePlanStore = create<PlanState>((set, get) => ({
   planIsHistory: false,
 
   run(project) {
-    get().task?.cancel()
+    get().invalidateTask()
     const seq = get().runSeq + 1
     set({
       status: 'running',
@@ -114,12 +116,13 @@ export const usePlanStore = create<PlanState>((set, get) => ({
   },
 
   cancel() {
+    get().invalidateTask()
+    set((s) => (s.status === 'running' ? { status: 'cancelled', progress: 0 } : {}))
+  },
+
+  invalidateTask() {
     get().task?.cancel()
-    set((s) =>
-      s.status === 'running'
-        ? { status: 'cancelled', progress: 0, task: null, runSeq: s.runSeq + 1 }
-        : {},
-    )
+    set((s) => ({ runSeq: s.runSeq + 1, task: null }))
   },
 
   setPlan: (plan) => set({ plan }),
@@ -132,7 +135,7 @@ export const usePlanStore = create<PlanState>((set, get) => ({
   setEditMode: (editMode) => set({ editMode }),
 
   openHistory: (record) => {
-    get().task?.cancel()
+    get().invalidateTask()
     set({
       plan: record.plan,
       status: 'done',
@@ -149,7 +152,7 @@ export const usePlanStore = create<PlanState>((set, get) => ({
   },
 
   reset: () => {
-    get().task?.cancel()
+    get().invalidateTask()
     set({
       plan: null,
       status: 'idle',
@@ -159,8 +162,6 @@ export const usePlanStore = create<PlanState>((set, get) => ({
       selectedPartKey: null,
       hoverPartKey: null,
       editMode: false,
-      task: null,
-      runSeq: get().runSeq + 1,
       planPartNames: null,
       planParts: null,
       planIsHistory: false,
