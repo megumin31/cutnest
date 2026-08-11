@@ -37,6 +37,8 @@ export function TopBar() {
   const plan = usePlanStore((s) => s.plan)
   const status = usePlanStore((s) => s.status)
   const editMode = usePlanStore((s) => s.editMode)
+  const planPartNames = usePlanStore((s) => s.planPartNames)
+  const planParts = usePlanStore((s) => s.planParts)
   const auth = useAuthStore((s) => s.status)
   const settingsStore = useSettingsStore()
 
@@ -68,12 +70,15 @@ export function TopBar() {
 
   const onExport = async (kind: 'pdf' | 'dxf') => {
     if (!current || !plan) return
+    // 导出必须用排样快照（历史方案/零件已改名删除时不随当前零件表漂移，与 HistoryPanel 同语义）
+    const snapshotProject = { ...current, parts: planParts ?? current.parts }
+    const names = planPartNames ? new Map(Object.entries(planPartNames)) : undefined
     const progressKey = 'pdf-export-progress'
     try {
       if (kind === 'pdf') {
         // 首次导出需下载字体（~17MB）：进度提示（子集化阶段停在 100%，完成后销毁）
         message.open({ key: progressKey, content: t('workspace.fontProgress', { pct: 0 }), duration: 0 })
-        await exportPdf(current, plan, auth, settingsStore.settings.exportLang, undefined, (p) => {
+        await exportPdf(snapshotProject, plan, auth, settingsStore.settings.exportLang, names, (p) => {
           message.open({
             key: progressKey,
             content: t('workspace.fontProgress', { pct: Math.round(p * 100) }),
@@ -82,7 +87,7 @@ export function TopBar() {
         })
         message.destroy(progressKey)
       } else {
-        await exportDxf(current, plan)
+        await exportDxf(snapshotProject, plan, names)
       }
     } catch (e) {
       message.destroy(progressKey)
