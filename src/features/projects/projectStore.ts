@@ -41,11 +41,14 @@ function cancelPendingSave(projectId: string) {
 /**
  * dirty 派生（非开关变量）：当前项目输入指纹 ≠ 当前展示方案对应的输入指纹。
  * 方案记录"由哪份输入算出"（planStore.inputFingerprint），比较得出——
- * 计算失败/取消时指纹仍是旧方案的 → 零件已改仍会提示；历史方案/无方案（fp=null）→ 不算 dirty。
+ * 计算失败/取消时指纹仍是旧方案的 → 零件已改仍会提示；
+ * fp=null（无方案/历史方案/reset）→ 无"由当前输入算出的方案"可比 → 不算 dirty。
  */
 function recomputeDirty(current: Project | null): boolean {
   if (!current) return false
-  return !inputMatches(current, usePlanStore.getState().inputFingerprint)
+  const fp = usePlanStore.getState().inputFingerprint
+  if (fp === null) return false
+  return !inputMatches(current, fp)
 }
 
 export async function createProject(name: string, existing?: Partial<Project>): Promise<Project> {
@@ -98,11 +101,19 @@ interface ProjectState {
   deleteProject: (id: string) => Promise<void>
 }
 
-export const useProjectStore = create<ProjectState>((set, get) => ({
-  projects: [],
-  current: null,
-  dirty: false,
-  loaded: false,
+export const useProjectStore = create<ProjectState>((set, get) => {
+  // dirty 派生联动：方案输入指纹变化（计算成功/打开历史/reset）时重算——
+  // 否则成功落方案后 projectStore.dirty 仍停留在计算前的 true（本 store 的变更动作不会触发重算）
+  usePlanStore.subscribe((s, prev) => {
+    if (s.inputFingerprint !== prev.inputFingerprint) {
+      set({ dirty: recomputeDirty(get().current) })
+    }
+  })
+  return {
+    projects: [],
+    current: null,
+    dirty: false,
+    loaded: false,
 
   async loadProjects() {
     const projects = await storage.listProjects()
@@ -215,4 +226,5 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       dirty: recomputeDirty(s.current?.id === id ? null : s.current),
     }))
   },
-}))
+  }
+})
