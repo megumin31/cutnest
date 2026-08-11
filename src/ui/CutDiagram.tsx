@@ -17,6 +17,7 @@ export interface CutDiagramProps {
   sheetIndex: number
   unit: LengthUnit
   selectedKey?: string | null
+  hoverKey?: string | null
   interactive?: boolean
   onSelect?: (key: string | null) => void
   onHover?: (key: string | null) => void
@@ -36,8 +37,8 @@ export function CutDiagram(props: CutDiagramProps) {
   const [scale, setScale] = useState(1)
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const dragRef = useRef<{ sx: number; sy: number; px: number; py: number } | null>(null)
-  /** 空白处点击清空选中；详情大图可拖拽平移，记录按下坐标防拖拽误清空 */
-  const blankClick = useRef<{ x: number; y: number } | null>(null)
+  /** 拖拽是否产生位移（>3px）：有位移的拖拽不是点击，点击空白清空选中须被抑制 */
+  const movedRef = useRef(false)
 
   const wasteRegions = useMemo(
     () =>
@@ -71,12 +72,17 @@ export function CutDiagram(props: CutDiagramProps) {
   const onPointerDown = (e: React.PointerEvent) => {
     if (!detail) return
     dragRef.current = { sx: e.clientX, sy: e.clientY, px: pan.x, py: pan.y }
-    blankClick.current = { x: e.clientX, y: e.clientY }
+    movedRef.current = false
     ;(e.target as Element).setPointerCapture?.(e.pointerId)
   }
 
   const onPointerMove = (e: React.PointerEvent) => {
     if (!detail || !dragRef.current) return
+    if (!movedRef.current) {
+      const dx = e.clientX - dragRef.current.sx
+      const dy = e.clientY - dragRef.current.sy
+      if (dx * dx + dy * dy > 9) movedRef.current = true
+    }
     setPan({
       x: dragRef.current.px + (e.clientX - dragRef.current.sx),
       y: dragRef.current.py + (e.clientY - dragRef.current.sy),
@@ -85,25 +91,6 @@ export function CutDiagram(props: CutDiagramProps) {
 
   const onPointerUp = () => {
     dragRef.current = null
-  }
-
-  const onBackgroundClick = () => {
-    if (!interactive) return
-    props.onSelect?.(null)
-  }
-
-  const onSvgClick = (e: React.MouseEvent) => {
-    // 空白处点击 = 取消选中；阻止冒泡，避免触发卡片外层 onClick 打开详情大图（否则选中被"大图覆盖"吞掉）
-    e.stopPropagation()
-    if (!detail) {
-      onBackgroundClick()
-      return
-    }
-    // 详情大图：用按下/抬起坐标差判断是否拖拽（按下坐标在 onPointerDown 记录）
-    const down = blankClick.current
-    blankClick.current = null
-    if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 4) return
-    onBackgroundClick()
   }
 
   return (
@@ -120,7 +107,10 @@ export function CutDiagram(props: CutDiagramProps) {
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
-      onClick={onSvgClick}
+      // 空白处点击：不拦截（冒泡至工作区根 → 清空选中）；拖拽平移（有位移）抑制冒泡，不清空
+      onClick={(e) => {
+        if (movedRef.current) e.stopPropagation()
+      }}
       role="img"
       aria-label={`sheet ${sheetIndex + 1}`}
     >
@@ -139,12 +129,10 @@ export function CutDiagram(props: CutDiagramProps) {
         {layout.placements.map((p, i) => {
           const key = partKey(p.partId, p.instance)
           const selected = props.selectedKey === key
-          // 聚焦只在选中态发生，且仅限本张板（选中零件所在卡内的其他零件变暗，其余板卡不暗）
-          const selectedInThisSheet =
-            props.selectedKey !== null &&
-            props.selectedKey !== undefined &&
-            layout.placements.some((pl) => partKey(pl.partId, pl.instance) === props.selectedKey)
-          const dimmed = selectedInThisSheet && !selected
+          const hovered = props.hoverKey === key
+          const dimmed =
+            (props.selectedKey !== null && props.selectedKey !== undefined && !selected) ||
+            (props.hoverKey !== null && props.hoverKey !== undefined && !hovered)
           const color = PART_PALETTE[partColorIdx[i] % PART_PALETTE.length]
           const name = props.partNameOf?.(p.partId) ?? p.partId
           const area = p.len * p.wid

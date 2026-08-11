@@ -17,8 +17,6 @@ export function StatsPanel() {
   const sheetIndex = usePlanStore((s) => s.sheetIndex)
   const setSheetIndex = usePlanStore((s) => s.setSheetIndex)
   const selectedKey = usePlanStore((s) => s.selectedPartKey)
-  const setSelectedPart = usePlanStore((s) => s.setSelectedPart)
-  const hoverKey = usePlanStore((s) => s.hoverPartKey)
   const current = useProjectStore((s) => s.current)
   const unit = useSettingsStore((s) => s.settings.unit)
   const pricingEnabled = useSettingsStore((s) => s.settings.pricing.enabled)
@@ -146,11 +144,13 @@ export function StatsPanel() {
         {layout?.placements.map((p) => {
           const key = partKey(p.partId, p.instance)
           const active = selectedKey === key
-          const rowHovered = hoverKey === key
           return (
             <div
               key={key}
-              onClick={() => setSelectedPart(active ? null : key)}
+              onClick={(e) => {
+                e.stopPropagation()
+                usePlanStore.getState().selectPart(active ? null : key)
+              }}
               onMouseEnter={() => usePlanStore.getState().setHoverPart(key)}
               onMouseLeave={() => usePlanStore.getState().setHoverPart(null)}
               style={{
@@ -160,11 +160,7 @@ export function StatsPanel() {
                 padding: '6px 8px',
                 borderRadius: 6,
                 cursor: 'pointer',
-                background: active
-                  ? 'rgba(232,89,12,0.10)'
-                  : rowHovered
-                    ? 'rgba(127,127,127,0.10)'
-                    : undefined,
+                background: active ? 'rgba(232,89,12,0.10)' : undefined,
               }}
             >
               <span

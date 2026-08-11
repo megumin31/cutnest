@@ -35,7 +35,11 @@ export function WorkspacePage() {
   const showEdit = !hasResult || editMode
 
   return (
-    <div style={{ display: 'flex', flex: 1, minHeight: 0, width: '100%' }}>
+    <div
+      style={{ display: 'flex', flex: 1, minHeight: 0, width: '100%' }}
+      // 全局点击清空选中：任何非零件点击（空白/翻页/板卡片）都清除；零件/列表行点击已 stopPropagation
+      onClick={() => usePlanStore.getState().selectPart(null)}
+    >
       <aside className="app-left">
         <SheetConfigPanel />
         <HistoryPanel />

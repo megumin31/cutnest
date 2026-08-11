@@ -46,6 +46,8 @@ interface PlanState {
   setSheetIndex: (i: number) => void
   setSelectedPart: (key: string | null) => void
   setHoverPart: (key: string | null) => void
+  /** 选中零件：联动右栏翻页到所在板；null（清空）不跳页 */
+  selectPart: (key: string | null) => void
   setEditMode: (v: boolean) => void
   /** 载入历史方案视图（plan 来自 PlanRecord，含零件快照） */
   openHistory: (record: PlanRecord) => void
@@ -135,6 +137,15 @@ export const usePlanStore = create<PlanState>((set, get) => ({
   setSheetIndex: (sheetIndex) => set({ sheetIndex }),
   setSelectedPart: (selectedPartKey) => set({ selectedPartKey }),
   setHoverPart: (hoverPartKey) => set({ hoverPartKey }),
+  selectPart: (key) => {
+    set({ selectedPartKey: key })
+    if (key) {
+      const idx = get().plan?.sheets.findIndex((sh) =>
+        sh.placements.some((p) => partKey(p.partId, p.instance) === key),
+      )
+      if (idx !== undefined && idx >= 0) set({ sheetIndex: idx })
+    }
+  },
   setEditMode: (editMode) => set({ editMode }),
 
   openHistory: (record) => {
