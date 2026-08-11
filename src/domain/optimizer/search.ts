@@ -124,7 +124,7 @@ export function search(params: SearchParams): SearchOutcome {
   }
   if (!bestResult || !bestScore) {
     // 退化输入（任何序都排不出）——由调用方保证不会发生
-    return { result: { sheets: [] }, score: { sheetCount: 0, compactness: 0, reusableWasteBlocks: 0, largestReusableWaste: 0, cost: 0 } }
+    return { result: { sheets: [] }, score: { sheetCount: 0, compactness: 0, reusableWasteBlocks: 0, largestReusableWaste: 0 } }
   }
 
   // 温度单位为"紧凑度劣化的毫米数"：1000mm → 0.001mm（对应用权重 1e12 时期的 T0=1e15/T1=1e9，

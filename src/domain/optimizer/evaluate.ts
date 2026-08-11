@@ -83,12 +83,6 @@ export interface EvalScore {
   reusableWasteBlocks: number
   /** 最大可再利用余料块面积 mm²（再次，越大越好） */
   largestReusableWaste: number
-  /**
-   * 单调标量成本（字典序保序，仅参考/兼容保留）——
-   * SA 接受判定已改为字典序分层（search.ts）：板数层硬规则 + 紧凑度层毫米温度退火，
-   * 不再使用本标量（固定权重 × 无界量的编码在大项目上会与张数层同量级碰撞）。
-   */
-  cost: number
 }
 
 /**
@@ -122,10 +116,7 @@ export function evaluatePlan(result: PackResult, minReusableWaste: number): Eval
   }
   // 同类接触总长越大越好 → 取负进入"越小越好"的字典序
   const negContact = -contact
-  // 字典序严格保序：张数 1e18 > 同类聚排 1e12 > 块数 1e12 > 最大块面积 (<1e9)
-  // 注：SA 接受判定已改为分层（见 search.ts），本标量仅参考/兼容保留，不再参与退火
-  const cost = sheetCount * 1e18 + negContact * 1e12 + blocks * 1e12 - largest
-  return { sheetCount, compactness: negContact, reusableWasteBlocks: blocks, largestReusableWaste: largest, cost }
+  return { sheetCount, compactness: negContact, reusableWasteBlocks: blocks, largestReusableWaste: largest }
 }
 
 /** 字典序比较：a 优于 b 返回 >0 */
