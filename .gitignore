@@ -3,6 +3,9 @@ dist/
 *.local
 .DS_Store
 
+# TS 增量构建缓存（tsc -b 产物，每次编译都变，无版本意义）
+tsconfig.tsbuildinfo
+
 # 字体资产（运行时按需下载 + 缓存；本地副本不入库）
 public/fonts/*.ttf
 tests/fixtures/fonts/*.ttf
