@@ -27,7 +27,6 @@ export function SheetFlow() {
   const planParts = usePlanStore((s) => s.planParts)
   const planIsHistory = usePlanStore((s) => s.planIsHistory)
   const selectedKey = usePlanStore((s) => s.selectedPartKey)
-  const hoverKey = usePlanStore((s) => s.hoverPartKey)
   const setSheetIndex = usePlanStore((s) => s.setSheetIndex)
   const setSelectedPart = usePlanStore((s) => s.setSelectedPart)
   const setHoverPart = usePlanStore((s) => s.setHoverPart)
@@ -147,7 +146,6 @@ export function SheetFlow() {
                   sheetIndex={i}
                   unit={unit}
                   selectedKey={selectedKey}
-                  hoverKey={hoverKey}
                   partNameOf={nameOf}
                   onSelect={handleSelect}
                   onHover={setHoverPart}
@@ -194,7 +192,6 @@ export function SheetFlow() {
               unit={unit}
               detail
               selectedKey={selectedKey}
-              hoverKey={hoverKey}
               partNameOf={nameOf}
               onSelect={handleSelect}
               onHover={setHoverPart}

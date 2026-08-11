@@ -17,7 +17,6 @@ export interface CutDiagramProps {
   sheetIndex: number
   unit: LengthUnit
   selectedKey?: string | null
-  hoverKey?: string | null
   interactive?: boolean
   onSelect?: (key: string | null) => void
   onHover?: (key: string | null) => void
@@ -139,10 +138,8 @@ export function CutDiagram(props: CutDiagramProps) {
         {layout.placements.map((p, i) => {
           const key = partKey(p.partId, p.instance)
           const selected = props.selectedKey === key
-          const hovered = props.hoverKey === key
-          const dimmed =
-            (props.selectedKey !== null && props.selectedKey !== undefined && !selected) ||
-            (props.hoverKey !== null && props.hoverKey !== undefined && !hovered)
+          // 聚焦只在选中态发生（悬停 = CSS 亮度提升，见 UI-DESIGN §7：悬停不得使其他零件变暗）
+          const dimmed = props.selectedKey !== null && props.selectedKey !== undefined && !selected
           const color = PART_PALETTE[partColorIdx[i] % PART_PALETTE.length]
           const name = props.partNameOf?.(p.partId) ?? p.partId
           const area = p.len * p.wid
