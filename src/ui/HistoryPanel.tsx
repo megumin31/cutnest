@@ -5,13 +5,14 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { App as AntApp, Button, Dropdown, Empty, Modal } from 'antd'
-import { DeleteOutlined, ExportOutlined, EyeOutlined } from '@ant-design/icons'
+import { DeleteOutlined, EditOutlined, ExportOutlined } from '@ant-design/icons'
 import { storage } from '../infra/storage'
 import { useProjectStore } from '../features/projects/projectStore'
 import { usePlanStore } from '../features/cutting/planStore'
 import { useAuthStore } from '../features/licensing/authStore'
 import { useSettingsStore } from '../features/settings/settingsStore'
 import { exportPdf, exportDxf, partNamesOf } from './exportActions'
+import { continueFromHistory } from '../features/cutting/historyActions'
 import type { PlanRecord } from '../domain/types'
 
 export function HistoryPanel() {
@@ -44,6 +45,12 @@ export function HistoryPanel() {
     // 取消运行中的任务并作废其回调，防止其晚到的 CANCELLED/结果覆盖历史方案视图；
     // 载入方案 + 零件快照（名字/零件清单随方案，不依赖当前零件表）
     usePlanStore.getState().openHistory(r)
+  }
+
+  const onContinue = () => {
+    if (continueFromHistory()) {
+      message.success(t('leftPanel.historyContinueDone'))
+    }
   }
 
   const onExport = async (r: PlanRecord, kind: 'pdf' | 'dxf') => {
@@ -93,6 +100,12 @@ export function HistoryPanel() {
             records.map((r) => (
               <div
                 key={r.id}
+                role="button"
+                tabIndex={0}
+                onClick={() => onOpen(r)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') onOpen(r)
+                }}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -100,6 +113,7 @@ export function HistoryPanel() {
                   padding: '8px 4px',
                   borderBottom: '1px solid var(--border)',
                   fontSize: 13,
+                  cursor: 'pointer',
                 }}
               >
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -117,10 +131,10 @@ export function HistoryPanel() {
                   menu={{
                     items: [
                       {
-                        key: 'open',
-                        label: t('leftPanel.historyOpen'),
-                        icon: <EyeOutlined />,
-                        onClick: () => onOpen(r),
+                        key: 'continue',
+                        label: t('leftPanel.historyContinue'),
+                        icon: <EditOutlined />,
+                        onClick: onContinue,
                       },
                       {
                         key: 'pdf',
@@ -145,7 +159,12 @@ export function HistoryPanel() {
                     ],
                   }}
                 >
-                  <Button type="text" size="small">
+                  <Button
+                    type="text"
+                    size="small"
+                    onClick={(e) => e.stopPropagation()}
+                    aria-label={t('leftPanel.historyActions')}
+                  >
                     ⋯
                   </Button>
                 </Dropdown>

@@ -18,6 +18,7 @@ import {
   UserOutlined,
 } from '@ant-design/icons'
 import { useAppStore, usePlanStore } from '../features/cutting/planStore'
+import { continueFromHistory } from '../features/cutting/historyActions'
 import { useProjectStore } from '../features/projects/projectStore'
 import { useAuthStore, TRIAL_PART_LIMIT } from '../features/licensing/authStore'
 import { useSettingsStore } from '../features/settings/settingsStore'
@@ -39,6 +40,7 @@ export function TopBar() {
   const editMode = usePlanStore((s) => s.editMode)
   const planPartNames = usePlanStore((s) => s.planPartNames)
   const planParts = usePlanStore((s) => s.planParts)
+  const planIsHistory = usePlanStore((s) => s.planIsHistory)
   const auth = useAuthStore((s) => s.status)
   const settingsStore = useSettingsStore()
 
@@ -197,8 +199,13 @@ export function TopBar() {
             <Button icon={<ExportOutlined />}>{t('workspace.export')}</Button>
           </Dropdown>
           {plan && status === 'done' && !editMode && (
-            <Button icon={<EditOutlined />} onClick={() => usePlanStore.getState().setEditMode(true)}>
-              {t('workspace.editParts')}
+            <Button
+              icon={<EditOutlined />}
+              onClick={() =>
+                planIsHistory ? continueFromHistory() : usePlanStore.getState().setEditMode(true)
+              }
+            >
+              {planIsHistory ? t('workspace.editFromHistory') : t('workspace.editParts')}
             </Button>
           )}
         </Space>
