@@ -2,15 +2,15 @@
  * 优化任务驱动 —— 普通函数封装 Worker 协议（发起/进度/取消），
  * 供 store 使用（不依赖 React hooks）。
  */
-import { createOptimizer } from '../../domain/optimizer'
-import type { OptimizeInput } from '../../domain/optimizer'
+import { createOptimizer, normalizeOptimizeError } from '../../domain/optimizer'
+import type { OptimizeInput, ComputeErrorCode } from '../../domain/optimizer'
 import type { CutPlan } from '../../domain/types'
 import type { WorkerRequest, WorkerResponse } from './optimizer.worker'
 
 export interface OptimizeCallbacks {
   onProgress?: (p: number) => void
   onResult: (plan: CutPlan) => void
-  onError: (code: string, message: string) => void
+  onError: (code: ComputeErrorCode, message: string) => void
 }
 
 export interface OptimizeTask {
@@ -33,11 +33,9 @@ export function runOptimize(input: OptimizeInput, cb: OptimizeCallbacks): Optimi
         cb.onResult(plan)
       })
       .catch((err: unknown) => {
-        if (err instanceof Error && err.name === 'AbortError') {
-          cb.onError('CANCELLED', '已取消')
-          return
-        }
-        cb.onError('UNKNOWN', err instanceof Error ? err.message : String(err))
+        // 归一化唯一入口：与 Worker 路径共用，业务错误码（PART_TOO_LARGE 等）不丢失
+        const { code, message } = normalizeOptimizeError(err)
+        cb.onError(code, message)
       })
     return { cancel: () => ac.abort() }
   }

@@ -48,6 +48,11 @@ export class OptimizeError extends Error {
   }
 }
 
+// 错误归一化（ComputeErrorCode / normalizeOptimizeError）re-export——消费方从模块入口取，
+// 不直接依赖子文件（模块 index.ts 契约，架构文档 §4 规则 2）
+export { normalizeOptimizeError } from './errors'
+export type { ComputeErrorCode, NormalizedError } from './errors'
+
 /** 可用区域（trim 修边后）。len/wid = 长度（X 轴）/宽度（Y 轴）方向尺寸 */
 export function usableArea(sheet: SheetSpec, settings: OptimizeSettings): { len: number; wid: number; area: number } {
   const trim = settings.trimAllowance

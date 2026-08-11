@@ -5,6 +5,7 @@ import { create } from 'zustand'
 import type { CutPlan, Part, PlanRecord, Project } from '../../domain/types'
 import { storage } from '../../infra/storage'
 import { runOptimize, type OptimizeTask } from '../../infra/worker/runOptimize'
+import type { ComputeErrorCode } from '../../domain/optimizer'
 import { useSettingsStore } from '../settings/settingsStore'
 import { planFingerprint, findDuplicatePlan, projectInputFingerprint } from './planFingerprint'
 
@@ -14,7 +15,7 @@ interface PlanState {
   plan: CutPlan | null
   status: ComputeStatus
   progress: number
-  error: { code: string; message: string } | null
+  error: { code: ComputeErrorCode; message: string } | null
   /** 右栏单板翻页索引 */
   sheetIndex: number
   /** 中央选中零件（partId#instance） */
@@ -48,7 +49,7 @@ interface PlanState {
   setPlan: (plan: CutPlan) => void
   setStatus: (s: ComputeStatus) => void
   setProgress: (p: number) => void
-  setError: (e: { code: string; message: string } | null) => void
+  setError: (e: { code: ComputeErrorCode; message: string } | null) => void
   setSheetIndex: (i: number) => void
   setSelectedPart: (key: string | null) => void
   setHoverPart: (key: string | null) => void

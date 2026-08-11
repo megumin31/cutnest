@@ -3,8 +3,9 @@
  * 主线程 → Worker: { type:'optimize', id, payload } | { type:'cancel', id }
  * Worker → 主线程: { type:'progress'|'result'|'error', id, ... }
  */
-import { createOptimizer, OptimizeError } from '../../domain/optimizer'
+import { createOptimizer, normalizeOptimizeError } from '../../domain/optimizer'
 import type { OptimizeInput } from '../../domain/optimizer'
+import type { ComputeErrorCode } from '../../domain/optimizer'
 import type { CutPlan } from '../../domain/types'
 
 export interface OptimizeMessage {
@@ -35,7 +36,7 @@ export interface ResultMessage {
 export interface ErrorMessage {
   type: 'error'
   id: string
-  code: string
+  code: ComputeErrorCode
   message: string
 }
 
@@ -67,12 +68,8 @@ self.onmessage = (ev: MessageEvent<WorkerRequest>) => {
       post({ type: 'result', id, plan })
     })
     .catch((err: unknown) => {
-      if (err instanceof Error && err.name === 'AbortError') {
-        post({ type: 'error', id, code: 'CANCELLED', message: '已取消' })
-        return
-      }
-      const code = err instanceof OptimizeError ? err.code : 'UNKNOWN'
-      const message = err instanceof Error ? err.message : String(err)
+      // 归一化唯一入口：跨线程传输前提取（结构化克隆丢 Error 原型，接收端无法 instanceof）
+      const { code, message } = normalizeOptimizeError(err)
       post({ type: 'error', id, code, message })
     })
     .finally(() => controllers.delete(id))
