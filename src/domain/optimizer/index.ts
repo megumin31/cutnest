@@ -202,7 +202,7 @@ export function createOptimizer(): Optimizer {
         }
       }
 
-      if (ctx?.signal?.aborted) throw new DOMException('cancelled', 'AbortError')
+      ctx?.signal?.throwIfAborted()
 
       const iterations = iterationBudget(resolveQuality(settings), instances.length)
       const outcome = search({

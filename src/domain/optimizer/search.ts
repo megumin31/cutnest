@@ -100,7 +100,7 @@ export function search(params: SearchParams): SearchOutcome {
   const n = instances.length
 
   const checkAbort = () => {
-    if (params.signal?.aborted) throw new DOMException('cancelled', 'AbortError')
+    params.signal?.throwIfAborted()
   }
 
   // ---- 初始解：启发式序 + 随机序，取字典序最优（此阶段也响应取消 + 报进度）----

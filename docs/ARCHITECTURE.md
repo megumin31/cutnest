@@ -59,7 +59,7 @@ ui (React 组件)
 ```
 
 **硬性规则：**
-1. `src/domain/` 禁止 import React、浏览器 API、任何 UI 库——必须能在纯 Node 环境跑单测
+1. `src/domain/` 禁止 import React、任何 UI 库、浏览器专属 API（window/document/localStorage/fetch）——必须能在纯 Node 环境跑单测。WHATWG 标准接口（AbortSignal/AbortController、btoa/atob、DOMException、TextEncoder 等，Node/浏览器/Worker 三端均有实现）允许使用
 2. 每个模块只通过 `index.ts` 暴露公共接口，内部实现可替换（接口即契约）
 3. 零件/板材**尺寸**为 mm 整数（cm/in 输入边界四舍五入）；切缝/余量等**工艺参数**允许小数（如 trim=1.5）；所有浮点比较统一 `epsilon = 0.001mm`
 4. 平台差异（Web vs Tauri）一律走 `infra/platform` 适配器，业务代码禁止平台分支

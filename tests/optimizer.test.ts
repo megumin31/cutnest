@@ -234,8 +234,8 @@ describe('取消', () => {
     const ac = new AbortController()
     ac.abort()
     const s = settings({ quality: 'fine' })
-    await expect(createOptimizer().optimize({ parts, sheets: [sheet], settings: s }, { signal: ac.signal })).rejects.toThrow(
-      'cancelled',
+    await expect(createOptimizer().optimize({ parts, sheets: [sheet], settings: s }, { signal: ac.signal })).rejects.toMatchObject(
+      { name: 'AbortError' },
     )
   })
 
