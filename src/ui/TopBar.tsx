@@ -230,7 +230,7 @@ export function TopBar() {
   )
 
   function commit() {
-    if (nameDraft.trim()) renameProject(nameDraft.trim())
+    if (nameDraft.trim() && current) renameProject(current.id, nameDraft.trim())
     setEditingName(false)
   }
 }

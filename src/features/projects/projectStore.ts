@@ -58,7 +58,7 @@ interface ProjectState {
   updateSheets: (sheets: SheetSpec[]) => void
   updateSettings: (patch: Partial<OptimizeSettings>) => void
   updateExportPrefs: (patch: Partial<ExportPrefs>) => void
-  renameProject: (name: string) => void
+  renameProject: (id: string, name: string) => void
   deleteProject: (id: string) => Promise<void>
   markClean: () => void
   setDirty: () => void
@@ -159,13 +159,13 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     void storage.saveProject(next)
   },
 
-  renameProject(name) {
-    const cur = get().current
+  renameProject(id, name) {
+    const cur = get().projects.find((p) => p.id === id)
     if (!cur) return
     const next = { ...cur, name, updatedAt: Date.now() }
     set({
-      current: next,
-      projects: get().projects.map((p) => (p.id === cur.id ? next : p)),
+      current: get().current?.id === id ? next : get().current,
+      projects: get().projects.map((p) => (p.id === id ? next : p)),
     })
     void storage.saveProject(next)
   },

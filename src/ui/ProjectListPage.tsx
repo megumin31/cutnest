@@ -157,7 +157,7 @@ export function ProjectListPage() {
         onOk={() => {
           if (renaming?.name.trim()) {
             const st = useProjectStore.getState()
-            st.renameProject(renaming.name.trim())
+            st.renameProject(renaming.id, renaming.name.trim())
           }
           setRenaming(null)
         }}
@@ -169,7 +169,7 @@ export function ProjectListPage() {
           onChange={(e) => setRenaming((r) => (r ? { ...r, name: e.target.value } : r))}
           onPressEnter={() => {
             if (renaming?.name.trim()) {
-              useProjectStore.getState().renameProject(renaming.name.trim())
+              useProjectStore.getState().renameProject(renaming.id, renaming.name.trim())
             }
             setRenaming(null)
           }}
