@@ -28,8 +28,7 @@ export function runOptimize(input: OptimizeInput, cb: OptimizeCallbacks): Optimi
     createOptimizer()
       .optimize(input, { signal: ac.signal })
       .then((plan) => {
-        plan.id = crypto.randomUUID()
-        plan.createdAt = Date.now()
+        // 方案 id/createdAt 不在此分配：由 storage.savePlan 统一实体化（历史记录主键归属持久化层）
         cb.onProgress?.(1)
         cb.onResult(plan)
       })

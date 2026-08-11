@@ -63,8 +63,7 @@ self.onmessage = (ev: MessageEvent<WorkerRequest>) => {
       signal: controller.signal,
     })
     .then((plan) => {
-      plan.id = crypto.randomUUID()
-      plan.createdAt = Date.now()
+      // 方案 id/createdAt 不在此分配：由 storage.savePlan 统一实体化（历史记录主键归属持久化层）
       post({ type: 'result', id, plan })
     })
     .catch((err: unknown) => {

@@ -83,7 +83,11 @@ export interface StorageApi {
   saveProject(project: Project): Promise<void>
   deleteProject(id: string): Promise<void>
   listPlans(projectId: string): Promise<PlanRecord[]>
-  savePlan(record: PlanRecord): Promise<void>
+  /**
+   * 历史记录实体化（唯一身份分配点）：record 可省略 id/createdAt——
+   * 省略时由仓储分配（id=UUID、createdAt=now）；传入时保留（去重更新沿用原 id/首次时间）。
+   */
+  savePlan(record: Omit<PlanRecord, 'id' | 'createdAt'> & { id?: string; createdAt?: number }): Promise<void>
   deletePlan(id: string): Promise<void>
   listMaterials(): Promise<SheetSpec[]>
   saveMaterial(spec: SheetSpec): Promise<void>
@@ -114,7 +118,12 @@ export const storage: StorageApi = {
     return db.cutPlans.where('projectId').equals(projectId).reverse().sortBy('createdAt')
   },
   async savePlan(record) {
-    await db.cutPlans.put(record)
+    const full: PlanRecord = {
+      ...record,
+      id: record.id ?? crypto.randomUUID(),
+      createdAt: record.createdAt ?? Date.now(),
+    }
+    await db.cutPlans.put(full)
   },
   async deletePlan(id) {
     await db.cutPlans.delete(id)

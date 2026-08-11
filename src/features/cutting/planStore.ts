@@ -210,15 +210,15 @@ export const usePlanStore = create<PlanState>((set, get) => ({
         fingerprint,
         projectName: project.name,
       }
+      // 保留 dup 的 id/首次 createdAt（去重更新沿用原身份）
       await storage.savePlan(updated)
     } else {
-      const record: PlanRecord = {
-        id: plan.id || `plan-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
+      // id/createdAt 不在此分配：storage.savePlan 统一实体化（主键归属持久化层，唯一分配点）
+      const record: Omit<PlanRecord, 'id' | 'createdAt'> = {
         projectId: project.id,
         projectName: project.name,
         plan,
         sheets: project.sheets,
-        createdAt: plan.createdAt || Date.now(),
         partNames,
         parts: project.parts,
         fingerprint,
