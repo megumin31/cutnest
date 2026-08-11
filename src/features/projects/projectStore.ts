@@ -12,6 +12,30 @@ export function newId(): string {
   return crypto.randomUUID()
 }
 
+/** 持久化防抖：连击编辑只写最后一次（拖尾 500ms），避免每键击全量写 IndexedDB 卡顿 */
+const pendingSaves = new Map<string, ReturnType<typeof setTimeout>>()
+const SAVE_DEBOUNCE_MS = 500
+
+function scheduleSave(project: Project) {
+  const pending = pendingSaves.get(project.id)
+  if (pending) clearTimeout(pending)
+  pendingSaves.set(
+    project.id,
+    setTimeout(() => {
+      pendingSaves.delete(project.id)
+      void storage.saveProject(project)
+    }, SAVE_DEBOUNCE_MS),
+  )
+}
+
+function cancelPendingSave(projectId: string) {
+  const pending = pendingSaves.get(projectId)
+  if (pending) {
+    clearTimeout(pending)
+    pendingSaves.delete(projectId)
+  }
+}
+
 export async function createProject(name: string, existing?: Partial<Project>): Promise<Project> {
   const now = Date.now()
   // 应用设置页的默认板材库 / 切缝 / 修边（默认库 = 内置规格 + 自定义材料，按 id 去重）
@@ -96,7 +120,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       dirty: true,
       projects: get().projects.map((p) => (p.id === cur.id ? next : p)),
     })
-    void storage.saveProject(next)
+    scheduleSave(next)
   },
 
   addPart(part) {
@@ -108,7 +132,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       dirty: true,
       projects: get().projects.map((p) => (p.id === cur.id ? next : p)),
     })
-    void storage.saveProject(next)
+    scheduleSave(next)
   },
 
   removePart(id) {
@@ -120,7 +144,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       dirty: true,
       projects: get().projects.map((p) => (p.id === cur.id ? next : p)),
     })
-    void storage.saveProject(next)
+    scheduleSave(next)
   },
 
   updateSheets(sheets) {
@@ -132,7 +156,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       dirty: true,
       projects: get().projects.map((p) => (p.id === cur.id ? next : p)),
     })
-    void storage.saveProject(next)
+    scheduleSave(next)
   },
 
   updateSettings(patch) {
@@ -144,7 +168,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       dirty: true,
       projects: get().projects.map((p) => (p.id === cur.id ? next : p)),
     })
-    void storage.saveProject(next)
+    scheduleSave(next)
   },
 
   updateExportPrefs(patch) {
@@ -156,7 +180,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       dirty: true,
       projects: get().projects.map((p) => (p.id === cur.id ? next : p)),
     })
-    void storage.saveProject(next)
+    scheduleSave(next)
   },
 
   renameProject(id, name) {
@@ -167,10 +191,11 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       current: get().current?.id === id ? next : get().current,
       projects: get().projects.map((p) => (p.id === id ? next : p)),
     })
-    void storage.saveProject(next)
+    scheduleSave(next)
   },
 
   async deleteProject(id) {
+    cancelPendingSave(id)
     await storage.deleteProject(id)
     set((s) => ({
       projects: s.projects.filter((p) => p.id !== id),
