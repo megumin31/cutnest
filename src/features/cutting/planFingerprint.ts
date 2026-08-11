@@ -5,7 +5,7 @@
  * 指纹 = 稳定序列化（plan 去掉易变字段 id/createdAt）+ 零件名快照（名字属档案内容，
  * 改名 → 指纹变 → 新记录）。djb2 哈希仅作快速预筛，去重最终以内容全等确认（防碰撞误判）。
  */
-import type { CutPlan, PlanRecord } from '../../domain/types'
+import type { CutPlan, PlanRecord, Project } from '../../domain/types'
 
 /** 稳定序列化：属性顺序由构造固定，去掉 id/createdAt 两个易变字段 */
 function stablePlanJson(plan: CutPlan): string {
@@ -43,4 +43,20 @@ export function findDuplicatePlan(
   plan: CutPlan,
 ): PlanRecord | undefined {
   return records.find((r) => r.fingerprint === fingerprint && r.plan && samePlanContent(r.plan, plan))
+}
+
+/**
+ * 项目排样输入指纹（parts/sheets/settings，带项目 id 前缀防跨项目误判）——
+ * dirty 派生的比较基准：方案落库时记录"由哪份输入算出"，dirty = 当前输入 ≠ 方案输入。
+ */
+export function projectInputFingerprint(p: Pick<Project, 'id' | 'parts' | 'sheets' | 'settings'>): string {
+  return `${p.id}::${hashString(JSON.stringify({ parts: p.parts, sheets: p.sheets, settings: p.settings }))}`
+}
+
+/**
+ * 当前输入与方案输入是否匹配。
+ * planFp = null（无方案/历史方案/未算过）时视为不匹配 → 不算 dirty（无方案可比，导出已被 !plan 拦截）。
+ */
+export function inputMatches(current: Pick<Project, 'id' | 'parts' | 'sheets' | 'settings'>, planFp: string | null): boolean {
+  return planFp !== null && projectInputFingerprint(current) === planFp
 }

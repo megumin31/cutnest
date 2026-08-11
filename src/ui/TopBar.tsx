@@ -34,7 +34,6 @@ export function TopBar() {
   const current = useProjectStore((s) => s.current)
   const dirty = useProjectStore((s) => s.dirty)
   const renameProject = useProjectStore((s) => s.renameProject)
-  const markClean = useProjectStore((s) => s.markClean)
   const plan = usePlanStore((s) => s.plan)
   const status = usePlanStore((s) => s.status)
   const editMode = usePlanStore((s) => s.editMode)
@@ -67,7 +66,6 @@ export function TopBar() {
       return
     }
     usePlanStore.getState().run(current)
-    markClean()
   }
 
   const onExport = async (kind: 'pdf' | 'dxf') => {

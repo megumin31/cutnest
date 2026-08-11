@@ -6,7 +6,7 @@ import type { CutPlan, Part, PlanRecord, Project } from '../../domain/types'
 import { storage } from '../../infra/storage'
 import { runOptimize, type OptimizeTask } from '../../infra/worker/runOptimize'
 import { useSettingsStore } from '../settings/settingsStore'
-import { planFingerprint, findDuplicatePlan } from './planFingerprint'
+import { planFingerprint, findDuplicatePlan, projectInputFingerprint } from './planFingerprint'
 
 export type ComputeStatus = 'idle' | 'running' | 'done' | 'error' | 'cancelled'
 
@@ -32,6 +32,12 @@ interface PlanState {
   planParts: Part[] | null
   /** 当前方案是否来自历史记录（决定中央区是否显示"零件清单"切换） */
   planIsHistory: boolean
+  /**
+   * 当前展示方案对应的输入指纹（projectInputFingerprint；run 成功时写入）。
+   * 失败/取消保留上一次成功方案的指纹（dirty 与"上次成功方案"比较）；
+   * 无方案/历史方案/重置为 null。projectStore 派生 dirty 的比较基准。
+   */
+  inputFingerprint: string | null
   /** 历史落库版本号：saveToHistory 成功后自增——历史列表刷新信号与落库原子绑定（status='done' 早于落库，不能用作刷新时机） */
   historyRev: number
   /** 发起计算（Web Worker 线程内执行，主线程不卡） */
@@ -74,11 +80,15 @@ export const usePlanStore = create<PlanState>((set, get) => ({
   planPartNames: null,
   planParts: null,
   planIsHistory: false,
+  inputFingerprint: null,
   historyRev: 0,
 
   run(project) {
     get().invalidateTask()
     const seq = get().runSeq + 1
+    // 本次计算对应的输入指纹：成功时写入（onResult），失败/取消不写——
+    // inputFingerprint 保留上一次成功方案的指纹，dirty 继续与它比较（零件已改仍提示）
+    const fp = projectInputFingerprint(project)
     set({
       status: 'running',
       progress: 0,
@@ -107,7 +117,7 @@ export const usePlanStore = create<PlanState>((set, get) => ({
         },
         onResult: (plan) => {
           if (seq !== get().runSeq) return
-          set({ plan, status: 'done', progress: 1, task: null })
+          set({ plan, status: 'done', progress: 1, task: null, inputFingerprint: fp })
           void get().saveToHistory(project, plan)
         },
         onError: (code, message) => {
@@ -162,6 +172,8 @@ export const usePlanStore = create<PlanState>((set, get) => ({
       planPartNames: record.partNames ?? null,
       planParts: record.parts ?? null,
       planIsHistory: true,
+      // 历史方案与当前项目输入无绑定关系：清指纹 → dirty=false（顶栏导出不被 dirty 误伤，本就该走快照）
+      inputFingerprint: null,
     })
   },
 
@@ -179,6 +191,7 @@ export const usePlanStore = create<PlanState>((set, get) => ({
       planPartNames: null,
       planParts: null,
       planIsHistory: false,
+      inputFingerprint: null,
     })
   },
 

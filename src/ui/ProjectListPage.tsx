@@ -33,15 +33,16 @@ export function ProjectListPage() {
   }, [projects, search])
 
   const onOpen = async (id: string) => {
-    await openProject(id)
+    // 先 reset（清 inputFingerprint）：openProject 的 dirty 派生以"无方案"为基准，不被上个项目指纹误判
     usePlanStore.getState().reset()
+    await openProject(id)
     navigate('workspace', id)
   }
 
   const onCreate = async () => {
+    usePlanStore.getState().reset()
     const project = await createProject(t('projects.createDefault'))
     message.success(t('projects.created'))
-    usePlanStore.getState().reset()
     navigate('workspace', project.id)
   }
 

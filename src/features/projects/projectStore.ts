@@ -5,6 +5,8 @@
 import { create } from 'zustand'
 import { storage } from '../../infra/storage'
 import { useSettingsStore } from '../settings/settingsStore'
+import { usePlanStore } from '../cutting/planStore'
+import { inputMatches } from '../cutting/planFingerprint'
 import type { ExportPrefs, OptimizeSettings, Part, Project, SheetSpec } from '../../domain/types'
 import { DEFAULT_SHEETS, createDefaultSettings } from '../../domain/materials'
 
@@ -34,6 +36,16 @@ function cancelPendingSave(projectId: string) {
     clearTimeout(pending)
     pendingSaves.delete(projectId)
   }
+}
+
+/**
+ * dirty 派生（非开关变量）：当前项目输入指纹 ≠ 当前展示方案对应的输入指纹。
+ * 方案记录"由哪份输入算出"（planStore.inputFingerprint），比较得出——
+ * 计算失败/取消时指纹仍是旧方案的 → 零件已改仍会提示；历史方案/无方案（fp=null）→ 不算 dirty。
+ */
+function recomputeDirty(current: Project | null): boolean {
+  if (!current) return false
+  return !inputMatches(current, usePlanStore.getState().inputFingerprint)
 }
 
 export async function createProject(name: string, existing?: Partial<Project>): Promise<Project> {
@@ -84,8 +96,6 @@ interface ProjectState {
   updateExportPrefs: (patch: Partial<ExportPrefs>) => void
   renameProject: (id: string, name: string) => void
   deleteProject: (id: string) => Promise<void>
-  markClean: () => void
-  setDirty: () => void
 }
 
 export const useProjectStore = create<ProjectState>((set, get) => ({
@@ -101,13 +111,13 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
   async openProject(id) {
     const project = await storage.getProject(id)
-    set({ current: project ?? null, dirty: false })
+    set({ current: project ?? null, dirty: recomputeDirty(project ?? null) })
   },
 
   async createProject(name) {
     const project = await createProject(name)
     await storage.saveProject(project)
-    set((s) => ({ projects: [project, ...s.projects], current: project, dirty: false }))
+    set((s) => ({ projects: [project, ...s.projects], current: project, dirty: recomputeDirty(project) }))
     return project
   },
 
@@ -117,7 +127,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     const next = { ...cur, parts, updatedAt: Date.now() }
     set({
       current: next,
-      dirty: true,
+      dirty: recomputeDirty(next),
       projects: get().projects.map((p) => (p.id === cur.id ? next : p)),
     })
     scheduleSave(next)
@@ -129,7 +139,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     const next = { ...cur, parts: [...cur.parts, part], updatedAt: Date.now() }
     set({
       current: next,
-      dirty: true,
+      dirty: recomputeDirty(next),
       projects: get().projects.map((p) => (p.id === cur.id ? next : p)),
     })
     scheduleSave(next)
@@ -141,7 +151,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     const next = { ...cur, parts: cur.parts.filter((p) => p.id !== id), updatedAt: Date.now() }
     set({
       current: next,
-      dirty: true,
+      dirty: recomputeDirty(next),
       projects: get().projects.map((p) => (p.id === cur.id ? next : p)),
     })
     scheduleSave(next)
@@ -153,7 +163,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     const next = { ...cur, sheets, updatedAt: Date.now() }
     set({
       current: next,
-      dirty: true,
+      dirty: recomputeDirty(next),
       projects: get().projects.map((p) => (p.id === cur.id ? next : p)),
     })
     scheduleSave(next)
@@ -165,7 +175,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     const next = { ...cur, settings: { ...cur.settings, ...patch }, updatedAt: Date.now() }
     set({
       current: next,
-      dirty: true,
+      dirty: recomputeDirty(next),
       projects: get().projects.map((p) => (p.id === cur.id ? next : p)),
     })
     scheduleSave(next)
@@ -177,7 +187,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     const next = { ...cur, exportPrefs: { ...cur.exportPrefs, ...patch }, updatedAt: Date.now() }
     set({
       current: next,
-      dirty: true,
+      dirty: recomputeDirty(next),
       projects: get().projects.map((p) => (p.id === cur.id ? next : p)),
     })
     scheduleSave(next)
@@ -187,8 +197,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     const cur = get().projects.find((p) => p.id === id)
     if (!cur) return
     const next = { ...cur, name, updatedAt: Date.now() }
+    const updatedCurrent = get().current?.id === id ? next : get().current
     set({
-      current: get().current?.id === id ? next : get().current,
+      current: updatedCurrent,
+      dirty: recomputeDirty(updatedCurrent),
       projects: get().projects.map((p) => (p.id === id ? next : p)),
     })
     scheduleSave(next)
@@ -200,13 +212,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     set((s) => ({
       projects: s.projects.filter((p) => p.id !== id),
       current: s.current?.id === id ? null : s.current,
+      dirty: recomputeDirty(s.current?.id === id ? null : s.current),
     }))
-  },
-
-  markClean() {
-    set({ dirty: false })
-  },
-  setDirty() {
-    set({ dirty: true })
   },
 }))
