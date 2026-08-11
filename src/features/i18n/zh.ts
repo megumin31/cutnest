@@ -48,6 +48,7 @@ export const zh = {
     exportDxf: '导出 DXF',
     exportPdfHint: '供客户查看，含标注与统计',
     exportDxfHint: '供机器执行，含切割顺序',
+    fontProgress: '字体准备 {{pct}}%',
   },
   leftPanel: {
     partsCount: '{{count}} 种 · 共 {{total}} 件',

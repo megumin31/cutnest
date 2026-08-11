@@ -48,6 +48,7 @@ export const en = {
     exportDxf: 'Export DXF',
     exportPdfHint: 'For clients: labels and statistics',
     exportDxfHint: 'For machines: cut order included',
+    fontProgress: 'Preparing fonts {{pct}}%',
   },
   leftPanel: {
     partsCount: '{{count}} types · {{total}} pieces',

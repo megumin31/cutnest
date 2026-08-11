@@ -6,4 +6,6 @@ dist/
 # 字体资产（运行时按需下载 + 缓存；本地副本不入库）
 public/fonts/*.ttf
 tests/fixtures/fonts/*.ttf
+# 例外：测试专用小字体 fixture（scripts/make-test-fonts.mjs 生成，提交入库保证关键路径真实可测）
+!tests/fixtures/fonts/test-*.ttf
 .omo/

@@ -58,13 +58,24 @@ export function HistoryPanel() {
     const names = r.partNames
       ? new Map(Object.entries(r.partNames))
       : partNamesOf(project)
+    const progressKey = 'pdf-export-progress'
     try {
       if (kind === 'pdf') {
-        await exportPdf(project, r.plan, auth, exportLang, names)
+        // 首次导出需下载字体（~17MB）：进度提示
+        message.open({ key: progressKey, content: t('workspace.fontProgress', { pct: 0 }), duration: 0 })
+        await exportPdf(project, r.plan, auth, exportLang, names, (p) => {
+          message.open({
+            key: progressKey,
+            content: t('workspace.fontProgress', { pct: Math.round(p * 100) }),
+            duration: 0,
+          })
+        })
+        message.destroy(progressKey)
       } else {
         await exportDxf(project, r.plan, names)
       }
     } catch (e) {
+      message.destroy(progressKey)
       message.error(e instanceof Error ? e.message : String(e))
     }
   }

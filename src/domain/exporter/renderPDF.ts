@@ -18,6 +18,9 @@ import { PART_PALETTE, sheetPartColors } from '../palette'
 import { toScene } from './toScene'
 import { wasteRegionsOfLayout } from '../optimizer/evaluate'
 
+/** jsPDF.API.TTFFont：与 jsPDF 内部 addFont 同一解析器，用于预校验（类型见 src/types/jspdf.d.ts） */
+const TTFFont = jsPDF.API.TTFFont
+
 export interface PdfLabels {
   /** 项目名 */
   projectName: string
@@ -134,6 +137,64 @@ const HEADER_H = 22
 /** CJK/泰文子集字体仅注册 normal 字重，三写模拟加粗的水平偏移 */
 const BOLD_OFFSET = 0.07
 
+/** 泰文字符判定（与 needsThaiFont 一致）：泰文音节块 \u0e00-\u0e7f */
+const THAI_CHAR_RE = /[\u0e00-\u0e7f]/
+
+/** 泰文 run 切分：文本按"泰文段 / 非泰文段"分组（混排时每段用对应字体） */
+function splitRuns(text: string): { text: string; thai: boolean }[] {
+  const runs: { text: string; thai: boolean }[] = []
+  let cur: { text: string; thai: boolean } | null = null
+  for (const ch of text) {
+    const thai = THAI_CHAR_RE.test(ch)
+    if (!cur || cur.thai !== thai) {
+      cur = { text: ch, thai }
+      runs.push(cur)
+    } else {
+      cur.text += ch
+    }
+  }
+  return runs
+}
+
+/** 单段文本宽度（按该段字体测量；调用方须已设字号） */
+function runWidth(ctx: Layout, r: { text: string; thai: boolean }): number {
+  ctx.setRunFont(r.thai, 'normal')
+  return ctx.doc.getTextWidth(r.text)
+}
+
+/** 混排超宽截断：从尾部逐字符删除（保持 run 结构），末尾补省略号 */
+function runsEllipsize(
+  ctx: Layout,
+  runs: { text: string; thai: boolean }[],
+  maxWidth: number,
+): { text: string; thai: boolean }[] {
+  const measure = () => runs.reduce((s, r) => s + runWidth(ctx, r), 0)
+  if (measure() <= maxWidth) return runs
+  while (runs.length > 0) {
+    const last = runs[runs.length - 1]
+    last.text = last.text.slice(0, -1)
+    if (last.text === '') runs.pop()
+    ctx.setRunFont(false, 'normal')
+    const ellW = ctx.doc.getTextWidth('…')
+    if (runs.length === 0 || measure() + ellW <= maxWidth) break
+  }
+  if (runs.length === 0) return runs
+  // 省略号并入非泰文段（NotoSC 含 U+2026；末尾恰为泰文段则单独成段）
+  const last = runs[runs.length - 1]
+  if (last.thai) runs.push({ text: '…', thai: false })
+  else last.text += '…'
+  return runs
+}
+
+/** 注册前预校验：与 jsPDF addFont 同一解析器（其异常会被 jsPDF PubSub 吞掉，须在此提前暴露真实原因） */
+function validateFontBytes(buf: ArrayBuffer, label: string): void {
+  try {
+    TTFFont.open(new Uint8Array(buf))
+  } catch (e) {
+    throw new PdfFontError(`字体解析失败（${label}）：${e instanceof Error ? e.message : String(e)}`)
+  }
+}
+
 /** CJK/泰文子集字体仅注册 normal 字重，需要三写模拟加粗 */
 function cjkOrThai(ctx: Layout): boolean {
   return ctx.cjkMode || ctx.thaiMode
@@ -145,8 +206,12 @@ interface Layout {
   fonts: PdfFonts
   cjkMode: boolean
   thaiMode: boolean
+  /** 混排（CJK 与泰文同时需要）：文本绘制按泰文 run 分段切换字体 */
+  mixed: boolean
   /** 字体设置必须走这里：cjkMode 下统一切到嵌入的 NotoSC，禁止直接 setFont('helvetica') */
   setFont: (style: 'normal' | 'bold') => void
+  /** run 级字体切换（混排用）：thai 段 → NotoThai；其余段 → NotoSC（cjkMode）或 helvetica */
+  setRunFont: (runThai: boolean, style: 'normal' | 'bold') => void
 }
 
 function fmt(labels: PdfLabels, mm: number): string {
@@ -187,10 +252,36 @@ function drawText(ctx: Layout, text: string, x: number, y: number, opts: DrawTex
   ctx.setFont(bold ? 'bold' : 'normal')
   if (opts.size !== undefined) doc.setFontSize(opts.size)
   if (opts.color) doc.setTextColor(opts.color[0], opts.color[1], opts.color[2])
-  if (opts.maxWidth !== undefined) text = ellipsize(doc, text, opts.maxWidth)
   const base: { align?: 'left' | 'center' | 'right'; angle?: number } = {}
   if (opts.align) base.align = opts.align
   if (opts.angle !== undefined) base.angle = opts.angle
+
+  if (ctx.mixed) {
+    // 混排：泰文段 NotoThai、其余段 NotoSC，逐段绘制并累计偏移（角度场景退化单字体）
+    if (opts.angle !== undefined) {
+      doc.text(text, x, y, base)
+      return
+    }
+    let runs = splitRuns(text)
+    if (opts.maxWidth !== undefined) runs = runsEllipsize(ctx, runs, opts.maxWidth)
+    if (runs.length === 0) return
+    const totalW = runs.reduce((s, r) => s + runWidth(ctx, r), 0)
+    let x0 = x
+    if (opts.align === 'center') x0 -= totalW / 2
+    else if (opts.align === 'right') x0 -= totalW
+    for (const r of runs) {
+      ctx.setRunFont(r.thai, bold ? 'bold' : 'normal')
+      if (bold) {
+        doc.text(r.text, x0 - BOLD_OFFSET, y, {})
+        doc.text(r.text, x0 + BOLD_OFFSET, y, {})
+      }
+      doc.text(r.text, x0, y, {})
+      x0 += runWidth(ctx, r)
+    }
+    return
+  }
+
+  if (opts.maxWidth !== undefined) text = ellipsize(doc, text, opts.maxWidth)
   if (bold && cjkOrThai(ctx)) {
     doc.text(text, x - BOLD_OFFSET, y, base)
     doc.text(text, x + BOLD_OFFSET, y, base)
@@ -200,7 +291,7 @@ function drawText(ctx: Layout, text: string, x: number, y: number, opts: DrawTex
 
 /**
  * 零件标注（白字 + 深色 halo）：halo 偏移随字号缩放（近似网页 paint-order stroke）。
- * CJK/泰文下三写模拟加粗。
+ * 复用 drawText 统一出口：CJK/泰文三写模拟加粗、混排 run 分段自动生效。
  */
 function drawLabelText(
   ctx: Layout,
@@ -213,22 +304,16 @@ function drawLabelText(
   const { doc } = ctx
   const halo = Math.max(0.25, size * 0.06)
   doc.setFontSize(size)
-  doc.setTextColor(24, 24, 27)
   const offsets: [number, number][] = [
     [-halo, -halo],
     [halo, -halo],
     [-halo, halo],
     [halo, halo],
   ]
-  for (const [dx, dy] of offsets) doc.text(text, x + dx, y + dy, { align })
-  ctx.setFont(cjkOrThai(ctx) ? 'normal' : 'bold')
-  if (cjkOrThai(ctx)) {
-    doc.setTextColor(255, 255, 255)
-    doc.text(text, x - BOLD_OFFSET, y, { align })
-    doc.text(text, x + BOLD_OFFSET, y, { align })
+  for (const [dx, dy] of offsets) {
+    drawText(ctx, text, x + dx, y + dy, { color: [24, 24, 27], align })
   }
-  doc.setTextColor(255, 255, 255)
-  doc.text(text, x, y, { align })
+  drawText(ctx, text, x, y, { bold: true, color: [255, 255, 255], align })
 }
 
 /** 按字符断行（CJK 无空格也安全），每行不超过 maxWidth；内部设置 9pt normal */
@@ -236,6 +321,25 @@ function wrapChars(ctx: Layout, text: string, maxWidth: number): string[] {
   ctx.setFont('normal')
   ctx.doc.setFontSize(9)
   const lines: string[] = []
+  if (ctx.mixed) {
+    // 混排：逐字符按 run 字体测量
+    let line = ''
+    let lineW = 0
+    for (const ch of text) {
+      ctx.setRunFont(THAI_CHAR_RE.test(ch), 'normal')
+      const w = ctx.doc.getTextWidth(ch)
+      if (line && lineW + w > maxWidth) {
+        lines.push(line)
+        line = ch
+        lineW = w
+      } else {
+        line += ch
+        lineW += w
+      }
+    }
+    if (line) lines.push(line)
+    return lines
+  }
   let line = ''
   for (const ch of text) {
     if (line && ctx.doc.getTextWidth(line + ch) > maxWidth) {
@@ -481,10 +585,11 @@ export async function renderPDF(
   fonts: PdfFonts = {},
   edgeBands?: Map<string, ('L' | 'R' | 'T' | 'B')[]>,
 ): Promise<PdfResult> {
-  // 决定是否用 CJK/泰文字体（词条标签 + 用户输入 + 板材规格名全部参与判定；混合场景 CJK 优先）
+  // 决定是否用 CJK/泰文字体（词条标签 + 用户输入 + 板材规格名全部参与判定；
+  // 两者独立判定：Noto Sans SC 不含泰文字形，混排时两个字体都注册，绘制按 run 分段）
   const allText = pdfTexts(labels, partNames, plan.sheetLibrary.map((s) => s.name))
   const needCjk = needsCjkFont(allText)
-  const needThai = !needCjk && needsThaiFont(allText)
+  const needThai = needsThaiFont(allText)
   if (needCjk && !fonts.cjk) {
     throw new PdfFontError('PDF 文本包含 CJK 字符，但未提供字体')
   }
@@ -493,17 +598,21 @@ export async function renderPDF(
   }
   const cjkMode = needCjk
   const thaiMode = needThai
+  const mixed = cjkMode && thaiMode
 
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
 
   if (cjkMode) {
     const buf = fonts.cjk as ArrayBuffer
+    // 预校验（jsPDF 内部解析失败会被其 PubSub 吞掉 → 渲染报无意义 widths 错，须提前暴露）
+    validateFontBytes(buf, 'CJK')
     const b64 = arrayBufferToBase64(buf)
     doc.addFileToVFS('NotoSC.ttf', b64)
     doc.addFont('NotoSC.ttf', 'NotoSC', 'normal')
   }
   if (thaiMode) {
     const buf = fonts.thai as ArrayBuffer
+    validateFontBytes(buf, '泰文')
     const b64 = arrayBufferToBase64(buf)
     doc.addFileToVFS('NotoThai.ttf', b64)
     doc.addFont('NotoThai.ttf', 'NotoThai', 'normal')
@@ -514,6 +623,7 @@ export async function renderPDF(
     fonts,
     cjkMode,
     thaiMode,
+    mixed,
     setFont: (style: 'normal' | 'bold') => {
       if (cjkMode) {
         // 子集化字体仅注册 normal 字重（加粗由 drawText 三写模拟）
@@ -521,6 +631,15 @@ export async function renderPDF(
       } else if (thaiMode) {
         // 泰文字体含拉丁字形，整档统一使用
         doc.setFont('NotoThai', 'normal')
+      } else {
+        doc.setFont('helvetica', style)
+      }
+    },
+    setRunFont: (runThai: boolean, style: 'normal' | 'bold') => {
+      if (runThai) {
+        doc.setFont('NotoThai', 'normal')
+      } else if (cjkMode) {
+        doc.setFont('NotoSC', 'normal')
       } else {
         doc.setFont('helvetica', style)
       }

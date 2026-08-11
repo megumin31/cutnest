@@ -68,13 +68,24 @@ export function TopBar() {
 
   const onExport = async (kind: 'pdf' | 'dxf') => {
     if (!current || !plan) return
+    const progressKey = 'pdf-export-progress'
     try {
       if (kind === 'pdf') {
-        await exportPdf(current, plan, auth, settingsStore.settings.exportLang)
+        // 首次导出需下载字体（~17MB）：进度提示（子集化阶段停在 100%，完成后销毁）
+        message.open({ key: progressKey, content: t('workspace.fontProgress', { pct: 0 }), duration: 0 })
+        await exportPdf(current, plan, auth, settingsStore.settings.exportLang, undefined, (p) => {
+          message.open({
+            key: progressKey,
+            content: t('workspace.fontProgress', { pct: Math.round(p * 100) }),
+            duration: 0,
+          })
+        })
+        message.destroy(progressKey)
       } else {
         await exportDxf(current, plan)
       }
     } catch (e) {
+      message.destroy(progressKey)
       message.error(e instanceof Error ? e.message : String(e))
     }
   }

@@ -2,7 +2,7 @@
  * exporter 单测 —— toScene / DXF（图层、轮廓方向、切割顺序）/ PDF（页数、字体、CJK 嵌入）。
  */
 import { describe, it, expect } from 'vitest'
-import { readFileSync, existsSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { createOptimizer } from '../src/domain/optimizer'
 import { renderDXF, optimizeCutOrder, asciiLayerName, rectContour } from '../src/domain/exporter/renderDXF'
 import { renderPDF, needsCjkFont, needsThaiFont, pdfTexts, PdfFontError } from '../src/domain/exporter/renderPDF'
@@ -265,8 +265,8 @@ describe('renderPDF', () => {
 
   it('CJK 文本 + 子集字体：PDF 嵌入 FontFile 且文本实际使用该字体', async () => {
     const plan = await makePlan()
-    const fontPath = 'tests/fixtures/fonts/NotoSansSC.ttf'
-    if (!existsSync(fontPath)) return // 无字体 fixture 时跳过
+    // 测试专用小字体 fixture（scripts/make-test-fonts.mjs 生成，入库）
+    const fontPath = 'tests/fixtures/fonts/test-cjk.ttf'
     const wasmPath = 'node_modules/harfbuzzjs/hb-subset.wasm'
     const font = readFileSync(fontPath)
     const wasm = readFileSync(wasmPath)
@@ -387,8 +387,8 @@ describe('renderPDF', () => {
 
   it('泰文 + 子集字体：PDF 嵌入 FontFile 且文本实际使用该字体', async () => {
     const plan = await makePlan()
-    const fontPath = 'tests/fixtures/fonts/NotoSansThai.ttf'
-    if (!existsSync(fontPath)) return // 无字体 fixture 时跳过
+    // 测试专用小字体 fixture（scripts/make-test-fonts.mjs 生成，入库）
+    const fontPath = 'tests/fixtures/fonts/test-thai.ttf'
     const wasmPath = 'node_modules/harfbuzzjs/hb-subset.wasm'
     const font = readFileSync(fontPath)
     const wasm = readFileSync(wasmPath)
@@ -450,5 +450,86 @@ describe('renderPDF', () => {
       unit: 'mm',
     }, {}, bands)
     expect(result.pageCount).toBe(1 + plan.stats.sheetCount)
+  })
+
+  it('坏字体（sfnt 头合法但 cmap 缺失）：抛 PdfFontError 真实错误而非 widths 错', async () => {
+    const plan = await makePlan()
+    // 构造：把 fixture 的 cmap 表 tag 改掉（其余字节不变）——jsPDF 解析必然失败，
+    // 必须被预校验拦截并抛真实原因（否则 jsPDF PubSub 吞异常 → 渲染报 "reading 'widths'"）
+    const buf = readFileSync('tests/fixtures/fonts/test-cjk.ttf')
+    const copy = new Uint8Array(buf.byteLength)
+    copy.set(new Uint8Array(buf))
+    const v = new DataView(buf.buffer, buf.byteOffset, buf.byteLength)
+    const numTables = v.getUint16(4)
+    let found = false
+    for (let i = 0; i < numTables; i++) {
+      const off = 12 + i * 16
+      const tag = buf.toString('latin1', off, off + 4)
+      if (tag === 'cmap') {
+        copy.set([0x78, 0x78, 0x78, 0x78], off)
+        found = true
+      }
+    }
+    expect(found).toBe(true)
+    await expect(
+      renderPDF(plan, partNames, labels, { cjk: copy.buffer as ArrayBuffer }),
+    ).rejects.toBeInstanceOf(PdfFontError)
+    await expect(
+      renderPDF(plan, partNames, labels, { cjk: copy.buffer as ArrayBuffer }),
+    ).rejects.toThrow(/字体解析失败|cmap/)
+  })
+
+  it('混排（CJK 标签 + 泰文零件名）：双字体都嵌入且渲染不抛错', async () => {
+    const plan = await makePlan()
+    const cjkFont = readFileSync('tests/fixtures/fonts/test-cjk.ttf')
+    const thaiFont = readFileSync('tests/fixtures/fonts/test-thai.ttf')
+    const wasm = readFileSync('node_modules/harfbuzzjs/hb-subset.wasm')
+    const mixedNames = new Map([
+      ['a', 'ชั้นวาง'],
+      ['b', 'Drawer Face'],
+    ])
+    const texts = pdfTexts(labels, mixedNames, plan.sheetLibrary.map((s) => s.name)).join('')
+    const cjk = await subsetFontToTtf(
+      cjkFont.buffer.slice(cjkFont.byteOffset, cjkFont.byteOffset + cjkFont.byteLength),
+      texts,
+      wasm.buffer.slice(wasm.byteOffset, wasm.byteOffset + wasm.byteLength),
+    )
+    const thai = await subsetFontToTtf(
+      thaiFont.buffer.slice(thaiFont.byteOffset, thaiFont.byteOffset + thaiFont.byteLength),
+      texts,
+      wasm.buffer.slice(wasm.byteOffset, wasm.byteOffset + wasm.byteLength),
+    )
+    const result = await renderPDF(plan, mixedNames, labels, { cjk, thai })
+    expect(result.pageCount).toBe(1 + plan.stats.sheetCount)
+    const text = Buffer.from(result.bytes).toString('latin1')
+    // 两个字体都被嵌入
+    expect(text).toMatch(/\/NotoSC/)
+    expect(text).toMatch(/\/NotoThai/)
+    // 泰文字符确实走泰文字体（NotoThai 资源被内容流引用）
+    const objRe = /(\d+)\s+0\s+obj([\s\S]*?)endobj/g
+    const objs = new Map<number, string>()
+    let m: RegExpExecArray | null
+    while ((m = objRe.exec(text))) objs.set(Number(m[1]), m[2])
+    const thaiObjs = [...objs.entries()]
+      .filter(([, body]) => /\/Type\s*\/Font/.test(body) && /\/NotoThai/.test(body))
+      .map(([n]) => n)
+    expect(thaiObjs.length).toBeGreaterThan(0)
+    const thaiResNames = new Set<string>()
+    const refRe = /\/F(\d+)\s+(\d+)\s+0\s+R/g
+    while ((m = refRe.exec(text))) {
+      if (thaiObjs.includes(Number(m[2]))) thaiResNames.add(`F${m[1]}`)
+    }
+    const tfUsed = new Set([...text.matchAll(/\/F(\d+)\s+[\d.]+\s+Tf/g)].map((x) => `F${x[1]}`))
+    expect([...thaiResNames].some((n) => tfUsed.has(n))).toBe(true)
+  })
+
+  it('混排缺泰文字体：抛 PdfFontError（独立判定，不再被 CJK 压制）', async () => {
+    const plan = await makePlan()
+    const mixedNames = new Map([
+      ['a', 'ชั้นวาง'],
+      ['b', 'Drawer Face'],
+    ])
+    // 只提供 CJK 字体 → 泰文判定独立，必须缺字体报错（旧逻辑 needThai 被 CJK 压制会静默豆腐块）
+    await expect(renderPDF(plan, mixedNames, labels, {})).rejects.toBeInstanceOf(PdfFontError)
   })
 })

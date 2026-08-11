@@ -50,6 +50,7 @@ export async function exportPdf(
   auth: AuthStatus,
   exportLang: string,
   partNames?: Map<string, string>,
+  onFontProgress?: (p: number) => void,
 ): Promise<void> {
   const paid = auth.state === 'loggedIn' && auth.paid
   const labels = buildPdfLabels(project, exportLang)
@@ -63,10 +64,11 @@ export async function exportPdf(
     : brand
 
   // 字体：扫描整份文档实际绘制的全部文本（词条标签 + 用户输入 + 板材规格名 + 格式化字符），
-  // 与 renderPDF 内部判定共用 pdfTexts（同一份 plan.sheetLibrary 快照）——缺字符会白字/乱码
+  // 与 renderPDF 内部判定共用 pdfTexts（同一份 plan.sheetLibrary 快照）——缺字符会白字/乱码。
+  // 首次导出需下载 ~17MB 字体，进度回调供 UI 提示（子集化阶段无回调，UI 停留在 100%）
   const names = partNames ?? partNamesOf(project)
   const texts = pdfTexts(labels, names, plan.sheetLibrary.map((s) => s.name))
-  const fonts = await prepareExportFonts(texts)
+  const fonts = await prepareExportFonts(texts, onFontProgress)
 
   // 封边标注：PDF 按当前零件表的 edgeBand 需求绘制（历史方案重导出为尽力而为）
   const edgeBands = new Map(project.parts.map((p) => [p.id, p.edgeBand ?? []]))

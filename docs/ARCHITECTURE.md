@@ -291,8 +291,11 @@ interface ExportPrefs {
 - **字体按实际字符集加载**（不依赖界面语言）：渲染前按**实际绘制文本**扫描整份文档（词条 + 用户输入的零件名/板材规格名 + 格式化动态字符 ×·%m² 等；新增绘制文本必须同步 `pdfTexts` 清单，缺项 → 豆腐块），按字符归组加载字体——拉丁组（Noto Sans，含西里尔）/ SC / Thai 三组；**JP/KR 不单列字体，v1 由 Noto Sans SC 统一覆盖**（Noto CJK 家族含假名/谚文字形，能显示，个别汉字字形为 SC 风格；独立 JP/KR 字体留后续）；运行时子集化（subset-font，纯 JS+wasm，本地跑不联网）只嵌用到的字符
 - **字体分发策略**：
   - 桌面端：**全量打包字体组（v1 = SC/Thai，~30MB）**，离线零依赖（Tauri 安装包大点可接受；JP/KR 独立字体落地后体积相应上涨）
-  - Web 端：**UI 零预加载**（系统字体栈，不引 web 字体）；CJK 字体随构建产物部署在 `public/fonts/`（本地优先 + CDN 兜底，国内网络不依赖外网 CDN），用户点"导出 PDF"时才按需解码 + 子集化（首次含 ~17MB 字体下载，带进度提示）→ IndexedDB 缓存，之后离线导出可用
+  - Web 端：**UI 零预加载**（系统字体栈，不引 web 字体）；本地字体由 `npm run fonts:fetch` 生成至 `public/fonts/`（发布流程显式执行；字体不入 git，.gitignore 排除），运行时加载顺序 = **本地打包 → jsdelivr → fastly.jsdelivr（国内可达性较好）→ GitHub raw** 多来源兜底；用户点"导出 PDF"时才按需解码 + 子集化（首次 ~17MB 下载，**带进度提示**，失败自动换源）→ IndexedDB 缓存（缓存数据做 sfnt 有效性校验，坏缓存自动丢弃重下；缓存写入失败不致命，降级为本次不缓存），之后离线导出可用
   - 与 i18n 语言包共用"按需下载 + 缓存"机制
+- **CJK / 泰文独立判定**：`needsCjkFont` / `needsThaiFont` 分别判定、分别下载与子集化（Noto Sans SC 不含泰文字形，泰文必须走 Noto Sans Thai）；**混排文档（如中文标签 + 泰文零件名）两个字体同时嵌入，绘制时按泰文 run 分段切换字体**（jsPDF 单字体限制下的分段实现；泰文 shaping 仍受 jsPDF 无 GSUB 限制，v1 只保证字形不缺失、"可读"）
+- **字体解析防御**：子集化输出与缓存数据均做 sfnt 校验；注册前用 jsPDF 同款解析器（`API.TTFFont.open`）预校验，解析失败抛真实原因（jsPDF PubSub 会吞掉 addFont 内部异常，不预校验则渲染期报无意义的 "reading 'widths'"）
+- **测试**：测试专用小字体 fixture（`tests/fixtures/fonts/test-*.ttf`，`scripts/make-test-fonts.mjs` 生成）提交入库，CJK/泰文嵌入与混排测试真实执行，不因缺字体静默跳过
 - **CJK 无空格断行**：jsPDF 需实现按字符断行（v1 最大坑）；泰文 v1 保证"不崩不挤字、可读"即可，不追求完美断词
 - DXF 图层名/标注用英文（行业惯例，机器不认中文）
 
