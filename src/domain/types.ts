@@ -203,6 +203,10 @@ export interface PlanRecord {
   createdAt: number
   /** 排样时的零件名快照（partId → name），重新导出不依赖当前项目零件表 */
   partNames?: Record<string, string>
+  /** 排样时的完整零件表快照（历史方案查看当时的零件清单） */
+  parts?: Part[]
+  /** 输入指纹（同输入 → 同方案，重复"计算"不新增历史；旧数据无此字段） */
+  fingerprint?: string
 }
 
 /** 登录账号状态（会话态；权威数据在服务端） */

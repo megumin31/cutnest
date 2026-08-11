@@ -15,6 +15,8 @@ export const en = {
     retry: 'Retry',
     demoMode: 'Demo mode',
     networkOnline: 'Online',
+    yes: 'Yes',
+    no: 'No',
   },
   nav: {
     projects: 'Projects',
@@ -97,6 +99,9 @@ export const en = {
     historyEmpty: 'No saved plans',
     historyOpen: 'View',
     historyDelete: 'Delete',
+    partsList: 'Parts List',
+    viewCut: 'Cut Layout',
+    viewParts: 'Parts List',
   },
   guide: {
     step1: 'Add parts',
@@ -136,6 +141,7 @@ export const en = {
     cancelled: 'Cancelled',
     error: 'Optimization failed',
     sheets: '{{count}} sheets',
+    parts: '{{count}} parts',
     utilization: '{{pct}}% used',
   },
   review: {

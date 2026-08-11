@@ -22,6 +22,9 @@ export function StatsPanel() {
   const unit = useSettingsStore((s) => s.settings.unit)
   const pricingEnabled = useSettingsStore((s) => s.settings.pricing.enabled)
   const pricing = useSettingsStore((s) => s.settings.pricing)
+  // 排样快照（名字优先快照：历史方案不随当前零件表漂移）
+  const planPartNames = usePlanStore((s) => s.planPartNames)
+  const planParts = usePlanStore((s) => s.planParts)
 
   if (!plan || !current) return null
 
@@ -36,7 +39,15 @@ export function StatsPanel() {
     layout && sheetSpec ? ((sheetUsed / usableArea(sheetSpec, plan.settings).area) * 100).toFixed(1) : '0.0'
 
   const selected = layout?.placements.find((p) => partKey(p.partId, p.instance) === selectedKey) ?? null
-  const selectedPart = selected ? current.parts.find((p) => p.id === selected.partId) : null
+  const nameOf = (partId: string) =>
+    planParts?.find((p) => p.id === partId)?.name ??
+    planPartNames?.[partId] ??
+    current.parts.find((p) => p.id === partId)?.name ??
+    partId
+  // 数量取方案实际排入块数（跨板统计）
+  const countInPlan = (partId: string) =>
+    plan.sheets.reduce((n, sh) => n + sh.placements.filter((p) => p.partId === partId).length, 0)
+  const selectedName = selected ? nameOf(selected.partId) : null
 
   const statItems: [string, string][] = [
     [t('rightPanel.sheetCount'), String(stats.sheetCount)],
@@ -133,7 +144,6 @@ export function StatsPanel() {
       >
         {layout?.placements.map((p) => {
           const key = partKey(p.partId, p.instance)
-          const part = current.parts.find((x) => x.id === p.partId)
           const active = selectedKey === key
           return (
             <div
@@ -162,7 +172,7 @@ export function StatsPanel() {
                 }}
               />
               <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {part?.name ?? p.partId}
+                {nameOf(p.partId)}
                 {p.rotated ? ' ⟳' : ''}
               </span>
               <span style={{ color: 'var(--text-secondary)', fontSize: 12, fontVariantNumeric: 'tabular-nums' }}>
@@ -173,13 +183,13 @@ export function StatsPanel() {
         })}
       </div>
 
-      {selected && selectedPart && (
+      {selected && selectedName && (
         <>
           <Divider style={{ margin: '12px 0' }} />
           <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>
             {t('rightPanel.partDetail')}
           </div>
-          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>{selectedPart.name}</div>
+          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>{selectedName}</div>
           <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 4 }}>
             {t('rightPanel.partDims', {
               len: formatLength(selected.len, unit),
@@ -188,7 +198,7 @@ export function StatsPanel() {
             })}
           </div>
           <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-            {t('rightPanel.instanceCount', { n: selected.instance + 1 })} / {selectedPart.quantity}
+            {t('rightPanel.instanceCount', { n: selected.instance + 1 })} / {countInPlan(selected.partId)}
             {selected.rotated && <span> · {t('rightPanel.rotated')}</span>}
           </div>
         </>

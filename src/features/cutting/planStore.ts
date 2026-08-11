@@ -2,10 +2,11 @@
  * 方案 store —— 计算结果会话态 + 计算驱动（架构文档 §8.2）。
  */
 import { create } from 'zustand'
-import type { CutPlan, PlanRecord, Project } from '../../domain/types'
+import type { CutPlan, Part, PlanRecord, Project } from '../../domain/types'
 import { storage } from '../../infra/storage'
 import { runOptimize, type OptimizeTask } from '../../infra/worker/runOptimize'
 import { useSettingsStore } from '../settings/settingsStore'
+import { planFingerprint, findDuplicatePlan } from './planFingerprint'
 
 export type ComputeStatus = 'idle' | 'running' | 'done' | 'error' | 'cancelled'
 
@@ -25,6 +26,12 @@ interface PlanState {
   task: OptimizeTask | null
   /** 任务序号：run/cancel/reset 自增；回调按序号丢弃过期任务（防旧任务 CANCELLED 覆盖新任务状态） */
   runSeq: number
+  /** 当前展示方案的零件名快照（partId → name；run 写入项目快照、历史打开写入 record.partNames）——展示与导出不依赖当前零件表 */
+  planPartNames: Record<string, string> | null
+  /** 当前展示方案的完整零件表快照（仅历史方案载入；run/reset 清空）——历史查看的"零件清单"数据源 */
+  planParts: Part[] | null
+  /** 当前方案是否来自历史记录（决定中央区是否显示"零件清单"切换） */
+  planIsHistory: boolean
   /** 发起计算（Web Worker 线程内执行，主线程不卡） */
   run: (project: Project) => void
   cancel: () => void
@@ -36,8 +43,10 @@ interface PlanState {
   setSelectedPart: (key: string | null) => void
   setHoverPart: (key: string | null) => void
   setEditMode: (v: boolean) => void
+  /** 载入历史方案视图（plan 来自 PlanRecord，含零件快照） */
+  openHistory: (record: PlanRecord) => void
   reset: () => void
-  /** 结果落历史（storage.cutPlans），每项目保留最近 50 条 */
+  /** 结果落历史（storage.cutPlans）：同指纹不重复新增；每项目保留最近 50 条 */
   saveToHistory: (project: Project, plan: CutPlan) => Promise<void>
 }
 
@@ -56,6 +65,9 @@ export const usePlanStore = create<PlanState>((set, get) => ({
   editMode: false,
   task: null,
   runSeq: 0,
+  planPartNames: null,
+  planParts: null,
+  planIsHistory: false,
 
   run(project) {
     get().task?.cancel()
@@ -70,6 +82,9 @@ export const usePlanStore = create<PlanState>((set, get) => ({
       hoverPartKey: null,
       editMode: false,
       runSeq: seq,
+      planPartNames: Object.fromEntries(project.parts.map((p) => [p.id, p.name])),
+      planParts: null,
+      planIsHistory: false,
     })
     const task = runOptimize(
       {
@@ -116,6 +131,23 @@ export const usePlanStore = create<PlanState>((set, get) => ({
   setHoverPart: (hoverPartKey) => set({ hoverPartKey }),
   setEditMode: (editMode) => set({ editMode }),
 
+  openHistory: (record) => {
+    get().task?.cancel()
+    set({
+      plan: record.plan,
+      status: 'done',
+      progress: 1,
+      error: null,
+      sheetIndex: 0,
+      selectedPartKey: null,
+      hoverPartKey: null,
+      editMode: false,
+      planPartNames: record.partNames ?? null,
+      planParts: record.parts ?? null,
+      planIsHistory: true,
+    })
+  },
+
   reset: () => {
     get().task?.cancel()
     set({
@@ -129,10 +161,30 @@ export const usePlanStore = create<PlanState>((set, get) => ({
       editMode: false,
       task: null,
       runSeq: get().runSeq + 1,
+      planPartNames: null,
+      planParts: null,
+      planIsHistory: false,
     })
   },
 
   async saveToHistory(project, plan) {
+    const partNames = Object.fromEntries(project.parts.map((p) => [p.id, p.name]))
+    const fingerprint = planFingerprint(plan, partNames)
+    const all = await storage.listPlans(project.id)
+    // 去重：同输入 → 同方案，重复"计算"不新增历史（只更新快照字段，不产生新条目）
+    const dup = findDuplicatePlan(all, fingerprint, plan)
+    if (dup) {
+      const updated: PlanRecord = {
+        ...dup,
+        plan,
+        partNames,
+        parts: project.parts,
+        fingerprint,
+        projectName: project.name,
+      }
+      await storage.savePlan(updated)
+      return
+    }
     const record: PlanRecord = {
       id: plan.id || `plan-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
       projectId: project.id,
@@ -140,13 +192,14 @@ export const usePlanStore = create<PlanState>((set, get) => ({
       plan,
       sheets: project.sheets,
       createdAt: plan.createdAt || Date.now(),
-      partNames: Object.fromEntries(project.parts.map((p) => [p.id, p.name])),
+      partNames,
+      parts: project.parts,
+      fingerprint,
     }
     await storage.savePlan(record)
     // 裁剪：保留最近 50 条
-    const all = await storage.listPlans(project.id)
-    if (all.length > HISTORY_LIMIT) {
-      const excess = all.slice(HISTORY_LIMIT)
+    if (all.length + 1 > HISTORY_LIMIT) {
+      const excess = all.slice(HISTORY_LIMIT - 1)
       await Promise.all(excess.map((r) => storage.deletePlan(r.id)))
     }
   },

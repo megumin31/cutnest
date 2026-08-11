@@ -15,6 +15,8 @@ export const zh = {
     retry: '重试',
     demoMode: '演示模式',
     networkOnline: '在线',
+    yes: '是',
+    no: '否',
   },
   nav: {
     projects: '项目',
@@ -97,6 +99,9 @@ export const zh = {
     historyEmpty: '暂无历史方案',
     historyOpen: '查看',
     historyDelete: '删除',
+    partsList: '零件清单',
+    viewCut: '裁切图',
+    viewParts: '零件清单',
   },
   guide: {
     step1: '录入零件',
@@ -136,6 +141,7 @@ export const zh = {
     cancelled: '已取消',
     error: '计算失败',
     sheets: '{{count}} 张板',
+    parts: '{{count}} 件',
     utilization: '利用率 {{pct}}%',
   },
   review: {

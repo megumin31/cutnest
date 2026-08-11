@@ -46,22 +46,18 @@ export function HistoryPanel() {
   if (!current) return null
 
   const onOpen = (r: PlanRecord) => {
-    // 取消运行中的任务并作废其回调，防止其晚到的 CANCELLED/结果覆盖历史方案视图
-    usePlanStore.getState().cancel()
-    usePlanStore.getState().setPlan(r.plan)
-    usePlanStore.getState().setStatus('done')
-    usePlanStore.getState().setSheetIndex(0)
-    usePlanStore.getState().setEditMode(false)
-    usePlanStore.getState().setSelectedPart(null)
-    usePlanStore.getState().setHoverPart(null)
+    // 取消运行中的任务并作废其回调，防止其晚到的 CANCELLED/结果覆盖历史方案视图；
+    // 载入方案 + 零件快照（名字/零件清单随方案，不依赖当前零件表）
+    usePlanStore.getState().openHistory(r)
   }
 
   const onExport = async (r: PlanRecord, kind: 'pdf' | 'dxf') => {
-    const project = { ...current, sheets: r.sheets, exportPrefs: current.exportPrefs }
-    // 零件名用排样时快照（零件表可能已改），缺快照才回退当前项目
+    // 零件表用排样时快照（零件表可能已改）：parts 完整快照优先，缺快照回退当前项目；
+    // exportPdf 的零件名与封边需求（edgeBand）均取自该零件表
+    const project = { ...current, sheets: r.sheets, parts: r.parts ?? current.parts, exportPrefs: current.exportPrefs }
     const names = r.partNames
       ? new Map(Object.entries(r.partNames))
-      : partNamesOf(current)
+      : partNamesOf(project)
     try {
       if (kind === 'pdf') {
         await exportPdf(project, r.plan, auth, exportLang, names)
@@ -104,7 +100,10 @@ export function HistoryPanel() {
                   <div style={{ fontWeight: 500 }}>{new Date(r.createdAt).toLocaleString()}</div>
                   <div style={{ color: 'var(--text-secondary)', fontSize: 12 }}>
                     {t('statusbar.sheets', { count: r.plan.stats.sheetCount })} ·{' '}
-                    {t('statusbar.utilization', { pct: r.plan.stats.utilization.toFixed(1) })}
+                    {t('statusbar.parts', {
+                      count: r.plan.sheets.reduce((n, sh) => n + sh.placements.length, 0),
+                    })}{' '}
+                    · {t('statusbar.utilization', { pct: r.plan.stats.utilization.toFixed(1) })}
                   </div>
                 </div>
                 <Dropdown
