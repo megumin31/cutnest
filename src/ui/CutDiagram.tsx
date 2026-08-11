@@ -129,13 +129,13 @@ export function CutDiagram(props: CutDiagramProps) {
         {layout.placements.map((p, i) => {
           const key = partKey(p.partId, p.instance)
           const selected = props.selectedKey === key
-          const hovered = props.hoverKey === key
-          // 变暗只在本板卡内生效：选中/悬停零件位于本板时才让本板其他零件变暗，
-          // 他板卡的选中/悬停不影响本板（多板卡同屏时避免全局误暗）
-          const selectedInSheet = props.selectedKey != null && layout.placements.some((pl) => partKey(pl.partId, pl.instance) === props.selectedKey)
-          const hoverInSheet = props.hoverKey != null && layout.placements.some((pl) => partKey(pl.partId, pl.instance) === props.hoverKey)
-          const dimmed =
-            (selectedInSheet && !selected) || (hoverInSheet && !hovered)
+          // 变暗源单一：悬停优先（最新意图），无悬停时回退选中。
+          // 避免两套源叠加导致多板卡同时变暗；目标零件本身永不变暗。
+          const focusKey = props.hoverKey ?? props.selectedKey
+          const focusInSheet =
+            focusKey != null &&
+            layout.placements.some((pl) => partKey(pl.partId, pl.instance) === focusKey)
+          const dimmed = focusInSheet && key !== focusKey
           const color = PART_PALETTE[partColorIdx[i] % PART_PALETTE.length]
           const name = props.partNameOf?.(p.partId) ?? p.partId
           const area = p.len * p.wid
