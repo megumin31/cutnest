@@ -37,6 +37,8 @@ export function CutDiagram(props: CutDiagramProps) {
   const [scale, setScale] = useState(1)
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const dragRef = useRef<{ sx: number; sy: number; px: number; py: number } | null>(null)
+  /** 空白处点击清空选中；详情大图可拖拽平移，记录按下坐标防拖拽误清空 */
+  const blankClick = useRef<{ x: number; y: number } | null>(null)
 
   const wasteRegions = useMemo(
     () =>
@@ -70,6 +72,7 @@ export function CutDiagram(props: CutDiagramProps) {
   const onPointerDown = (e: React.PointerEvent) => {
     if (!detail) return
     dragRef.current = { sx: e.clientX, sy: e.clientY, px: pan.x, py: pan.y }
+    blankClick.current = { x: e.clientX, y: e.clientY }
     ;(e.target as Element).setPointerCapture?.(e.pointerId)
   }
 
@@ -83,6 +86,24 @@ export function CutDiagram(props: CutDiagramProps) {
 
   const onPointerUp = () => {
     dragRef.current = null
+  }
+
+  const onBackgroundClick = () => {
+    if (!interactive) return
+    props.onSelect?.(null)
+  }
+
+  const onSvgClick = (e: React.MouseEvent) => {
+    if (!detail) {
+      // 卡片模式：零件自身点击已 stopPropagation，落到根即空白
+      onBackgroundClick()
+      return
+    }
+    // 详情大图：用按下/抬起坐标差判断是否拖拽（按下坐标在 onPointerDown 记录）
+    const down = blankClick.current
+    blankClick.current = null
+    if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 4) return
+    onBackgroundClick()
   }
 
   return (
@@ -99,6 +120,7 @@ export function CutDiagram(props: CutDiagramProps) {
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
+      onClick={onSvgClick}
       role="img"
       aria-label={`sheet ${sheetIndex + 1}`}
     >

@@ -26,6 +26,11 @@ export function SheetFlow() {
   const planPartNames = usePlanStore((s) => s.planPartNames)
   const planParts = usePlanStore((s) => s.planParts)
   const planIsHistory = usePlanStore((s) => s.planIsHistory)
+  const selectedKey = usePlanStore((s) => s.selectedPartKey)
+  const hoverKey = usePlanStore((s) => s.hoverPartKey)
+  const setSheetIndex = usePlanStore((s) => s.setSheetIndex)
+  const setSelectedPart = usePlanStore((s) => s.setSelectedPart)
+  const setHoverPart = usePlanStore((s) => s.setHoverPart)
   const [detailIndex, setDetailIndex] = useState<number | null>(null)
   const [histView, setHistView] = useState<'cut' | 'parts'>('cut')
 
@@ -35,6 +40,17 @@ export function SheetFlow() {
   // 名字展示优先排样快照（历史方案不随当前零件表漂移）
   const nameOf = (id: string) =>
     planParts?.find((p) => p.id === id)?.name ?? planPartNames?.[id] ?? partNames.get(id)
+
+  // 图上选中：选中零件所在页与右栏当前页联动（跨页点击后右栏跳转过去并高亮）；取消选中仅清空
+  const handleSelect = (key: string | null) => {
+    if (key) {
+      const idx = plan?.sheets.findIndex((sh) =>
+        sh.placements.some((p) => `${p.partId}#${p.instance}` === key),
+      )
+      if (idx !== undefined && idx >= 0) setSheetIndex(idx)
+    }
+    setSelectedPart(key)
+  }
 
   // 编辑态：引导卡
   if (!plan || status !== 'done') {
@@ -130,9 +146,11 @@ export function SheetFlow() {
                   sheet={spec}
                   sheetIndex={i}
                   unit={unit}
+                  selectedKey={selectedKey}
+                  hoverKey={hoverKey}
                   partNameOf={nameOf}
-                  onSelect={usePlanStore.getState().setSelectedPart}
-                  onHover={usePlanStore.getState().setHoverPart}
+                  onSelect={handleSelect}
+                  onHover={setHoverPart}
                 />
               </div>
               <div style={{ fontSize: 12, color: 'var(--text-disabled)', marginTop: 8 }}>
@@ -175,9 +193,11 @@ export function SheetFlow() {
               sheetIndex={detailIndex}
               unit={unit}
               detail
+              selectedKey={selectedKey}
+              hoverKey={hoverKey}
               partNameOf={nameOf}
-              onSelect={usePlanStore.getState().setSelectedPart}
-              onHover={usePlanStore.getState().setHoverPart}
+              onSelect={handleSelect}
+              onHover={setHoverPart}
             />
           </div>
         </div>
