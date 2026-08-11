@@ -93,8 +93,9 @@ export function CutDiagram(props: CutDiagramProps) {
   }
 
   const onSvgClick = (e: React.MouseEvent) => {
+    // 空白处点击 = 取消选中；阻止冒泡，避免触发卡片外层 onClick 打开详情大图（否则选中被"大图覆盖"吞掉）
+    e.stopPropagation()
     if (!detail) {
-      // 卡片模式：零件自身点击已 stopPropagation，落到根即空白
       onBackgroundClick()
       return
     }
@@ -138,8 +139,12 @@ export function CutDiagram(props: CutDiagramProps) {
         {layout.placements.map((p, i) => {
           const key = partKey(p.partId, p.instance)
           const selected = props.selectedKey === key
-          // 聚焦只在选中态发生（悬停 = CSS 亮度提升，见 UI-DESIGN §7：悬停不得使其他零件变暗）
-          const dimmed = props.selectedKey !== null && props.selectedKey !== undefined && !selected
+          // 聚焦只在选中态发生，且仅限本张板（选中零件所在卡内的其他零件变暗，其余板卡不暗）
+          const selectedInThisSheet =
+            props.selectedKey !== null &&
+            props.selectedKey !== undefined &&
+            layout.placements.some((pl) => partKey(pl.partId, pl.instance) === props.selectedKey)
+          const dimmed = selectedInThisSheet && !selected
           const color = PART_PALETTE[partColorIdx[i] % PART_PALETTE.length]
           const name = props.partNameOf?.(p.partId) ?? p.partId
           const area = p.len * p.wid
