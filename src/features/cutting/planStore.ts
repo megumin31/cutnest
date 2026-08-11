@@ -32,6 +32,8 @@ interface PlanState {
   planParts: Part[] | null
   /** 当前方案是否来自历史记录（决定中央区是否显示"零件清单"切换） */
   planIsHistory: boolean
+  /** 历史落库版本号：saveToHistory 成功后自增——历史列表刷新信号与落库原子绑定（status='done' 早于落库，不能用作刷新时机） */
+  historyRev: number
   /** 发起计算（Web Worker 线程内执行，主线程不卡） */
   run: (project: Project) => void
   cancel: () => void
@@ -70,6 +72,7 @@ export const usePlanStore = create<PlanState>((set, get) => ({
   planPartNames: null,
   planParts: null,
   planIsHistory: false,
+  historyRev: 0,
 
   run(project) {
     get().invalidateTask()
@@ -184,25 +187,27 @@ export const usePlanStore = create<PlanState>((set, get) => ({
         projectName: project.name,
       }
       await storage.savePlan(updated)
-      return
+    } else {
+      const record: PlanRecord = {
+        id: plan.id || `plan-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
+        projectId: project.id,
+        projectName: project.name,
+        plan,
+        sheets: project.sheets,
+        createdAt: plan.createdAt || Date.now(),
+        partNames,
+        parts: project.parts,
+        fingerprint,
+      }
+      await storage.savePlan(record)
+      // 裁剪：保留最近 50 条
+      if (all.length + 1 > HISTORY_LIMIT) {
+        const excess = all.slice(HISTORY_LIMIT - 1)
+        await Promise.all(excess.map((r) => storage.deletePlan(r.id)))
+      }
     }
-    const record: PlanRecord = {
-      id: plan.id || `plan-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
-      projectId: project.id,
-      projectName: project.name,
-      plan,
-      sheets: project.sheets,
-      createdAt: plan.createdAt || Date.now(),
-      partNames,
-      parts: project.parts,
-      fingerprint,
-    }
-    await storage.savePlan(record)
-    // 裁剪：保留最近 50 条
-    if (all.length + 1 > HISTORY_LIMIT) {
-      const excess = all.slice(HISTORY_LIMIT - 1)
-      await Promise.all(excess.map((r) => storage.deletePlan(r.id)))
-    }
+    // 落库成功才通知刷新（status='done' 早于落库，历史列表以本信号为准）
+    set((s) => ({ historyRev: s.historyRev + 1 }))
   },
 }))
 

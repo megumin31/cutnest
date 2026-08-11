@@ -20,6 +20,9 @@ export function HistoryPanel() {
   const current = useProjectStore((s) => s.current)
   const auth = useAuthStore((s) => s.status)
   const exportLang = useSettingsStore((s) => s.settings.exportLang)
+  // 落库版本号：saveToHistory 成功后自增，作为"展开时刷新 + 落库后刷新"的统一信号
+  // （不能用 status==='done'：它早于 saveToHistory 写入，此时 listPlans 读不到新方案——竞态）
+  const historyRev = usePlanStore((s) => s.historyRev)
 
   const [records, setRecords] = useState<PlanRecord[]>([])
   const [collapsed, setCollapsed] = useState(true)
@@ -33,15 +36,7 @@ export function HistoryPanel() {
 
   useEffect(() => {
     if (!collapsed && current) void load()
-  }, [collapsed, current])
-
-  // 计算完成后刷新
-  useEffect(() => {
-    const unsub = usePlanStore.subscribe((s, prev) => {
-      if (s.status === 'done' && prev.status !== 'done') void load()
-    })
-    return unsub
-  }, [current])
+  }, [collapsed, current, historyRev])
 
   if (!current) return null
 
