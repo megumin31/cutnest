@@ -2,7 +2,7 @@
  * 左栏 · 历史方案（折叠收起）—— 按项目分组：日期/板材数/利用率/成本；
  * 操作：重新打开只读查看 + 重新导出 PDF/DXF、删除；每项目保留最近 50 条。
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { App as AntApp, Button, Dropdown, Empty, Modal } from 'antd'
 import { DeleteOutlined, EditOutlined, ExportOutlined } from '@ant-design/icons'
@@ -28,11 +28,14 @@ export function HistoryPanel() {
   const [records, setRecords] = useState<PlanRecord[]>([])
   const [collapsed, setCollapsed] = useState(true)
   const [deleting, setDeleting] = useState<PlanRecord | null>(null)
+  // 请求序号守卫：展开/落库连续触发的并发 load，只应用最后一次的结果（慢的旧请求不得覆盖新列表）
+  const loadSeqRef = useRef(0)
 
   const load = async () => {
     if (!current) return
+    const seq = ++loadSeqRef.current
     const list = await storage.listPlans(current.id)
-    setRecords(list)
+    if (seq === loadSeqRef.current) setRecords(list)
   }
 
   useEffect(() => {
@@ -47,8 +50,9 @@ export function HistoryPanel() {
     usePlanStore.getState().openHistory(r)
   }
 
-  const onContinue = () => {
-    if (continueFromHistory()) {
+  const onContinue = (r: PlanRecord) => {
+    // 显式以目标行为参数（不依赖“当前打开了哪条方案”的隐式状态）
+    if (continueFromHistory(r)) {
       message.success(t('leftPanel.historyContinueDone'))
     }
   }
@@ -104,7 +108,13 @@ export function HistoryPanel() {
                 tabIndex={0}
                 onClick={() => onOpen(r)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') onOpen(r)
+                  // 只响应行自身聚焦的按键；⋯ 按钮等子元素的键盘事件不激活行（防误打开）
+                  if (e.target !== e.currentTarget) return
+                  // role="button" 键盘契约 = Enter + Space（Space 需 preventDefault 防页面滚动）
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    onOpen(r)
+                  }
                 }}
                 style={{
                   display: 'flex',
@@ -134,7 +144,7 @@ export function HistoryPanel() {
                         key: 'continue',
                         label: t('leftPanel.historyContinue'),
                         icon: <EditOutlined />,
-                        onClick: onContinue,
+                        onClick: () => onContinue(r),
                       },
                       {
                         key: 'pdf',
