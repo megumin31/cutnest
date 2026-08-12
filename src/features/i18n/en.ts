@@ -50,6 +50,7 @@ export const en = {
     exportPdfHint: 'For clients: labels and statistics',
     exportDxfHint: 'For machines: cut order included',
     fontProgress: 'Preparing fonts {{pct}}%',
+    unfilledParts: '{{count}} parts without dimensions will be skipped',
   },
   leftPanel: {
     partsCount: '{{count}} types · {{total}} pieces',

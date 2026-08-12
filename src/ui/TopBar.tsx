@@ -41,7 +41,8 @@ export function TopBar() {
   const planParts = usePlanStore((s) => s.planParts)
   const planIsHistory = usePlanStore((s) => s.planIsHistory)
   const auth = useAuthStore((s) => s.status)
-  const settingsStore = useSettingsStore()
+  const uiLang = useSettingsStore((s) => s.settings.uiLang)
+  const exportLang = useSettingsStore((s) => s.settings.exportLang)
 
   const [editingName, setEditingName] = useState(false)
   const [nameDraft, setNameDraft] = useState('')
@@ -65,6 +66,11 @@ export function TopBar() {
       navigate('account')
       return
     }
+    // 未填尺寸的零件不参与计算：显式提示（不打断，0 是可见的显性状态）
+    const unfilled = current.parts.filter((p) => p.quantity > 0 && (p.length <= 0 || p.width <= 0))
+    if (unfilled.length > 0) {
+      message.warning(t('workspace.unfilledParts', { count: unfilled.length }))
+    }
     usePlanStore.getState().run(current)
   }
 
@@ -78,7 +84,7 @@ export function TopBar() {
       if (kind === 'pdf') {
         // 首次导出需下载字体（~17MB）：进度提示（子集化阶段停在 100%，完成后销毁）
         message.open({ key: progressKey, content: t('workspace.fontProgress', { pct: 0 }), duration: 0 })
-        await exportPdf(snapshotProject, plan, auth, settingsStore.settings.exportLang, names, (p) => {
+        await exportPdf(snapshotProject, plan, auth, exportLang, names, (p) => {
           message.open({
             key: progressKey,
             content: t('workspace.fontProgress', { pct: Math.round(p * 100) }),
@@ -212,11 +218,11 @@ export function TopBar() {
       <Select
         size="small"
         variant="borderless"
-        value={settingsStore.settings.uiLang}
+        value={uiLang}
         style={{ width: 96 }}
         options={LANGUAGES.map((l) => ({ value: l.code, label: l.label }))}
         onChange={(v) => {
-          void settingsStore.update({ uiLang: v })
+          void useSettingsStore.getState().update({ uiLang: v })
           void i18n.changeLanguage(v)
         }}
         popupMatchSelectWidth={false}

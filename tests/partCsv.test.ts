@@ -107,4 +107,16 @@ describe('parsePartsCsv', () => {
     const rows = parsePartsCsv(csv, () => undefined)
     expect(rows[0].sheetId).toBeUndefined()
   })
+
+  it('零件名恰为 name/Name/名称 的数据行不被误跳（表头判定仅限首行）', () => {
+    const csv = '名称,长度,宽度,数量\nname,100,50,2\nName,200,100,1\n名称,300,150,1\n侧板,400,200,3\n'
+    const rows = parsePartsCsv(csv, () => undefined)
+    expect(rows.map((r) => r.name)).toEqual(['name', 'Name', '名称', '侧板'])
+    expect(rows.map((r) => r.length)).toEqual([100, 200, 300, 400])
+  })
+
+  it('批量粘贴首行零件名恰为 name 也不被误跳', () => {
+    const rows = parsePartsCsv('name 100 50\n侧板 400 200 3', () => undefined)
+    expect(rows.map((r) => r.name)).toEqual(['name', '侧板'])
+  })
 })

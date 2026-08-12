@@ -17,6 +17,18 @@ export interface PartRow {
 
 const HEADERS = ['名称', '长度', '宽度', '数量', '旋转', '板材', '封边']
 
+/**
+ * CSV 表头已知列名（首行 ≥2 个匹配才判为表头）。
+ * 数据行零件名可能恰好叫 name/Name/名称，但整行最多命中 1 个已知列名，不会误判。
+ */
+const KNOWN_HEADER_CELLS = [
+  '名称', 'name', 'Name',
+  '长度', '长', 'length',
+  '宽度', '宽', 'width',
+  '数量', 'qty', 'quantity',
+  '旋转', '板材', '封边',
+]
+
 function csvCell(v: string): string {
   return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v
 }
@@ -104,12 +116,13 @@ export function parsePartsCsv(text: string, sheetIdOf: (name: string) => string 
   // 容忍 BOM（TextDecoder 通常已剥离，但直接传字符串时兜底）
   const src = text.charCodeAt(0) === 0xfeff ? text.slice(1) : text
   const rows: PartRow[] = []
-  for (const raw of src.split(/\r?\n/)) {
-    const parsed = parseLine(raw)
+  const lines = src.split(/\r?\n/)
+  for (let i = 0; i < lines.length; i++) {
+    const parsed = parseLine(lines[i])
     if (!parsed) continue
     const cells = parsed.cells
-    // 表头行（含"名称"列名）跳过
-    if (cells.some((c) => c === '名称' || c === 'name' || c === 'Name')) continue
+    // 仅首行判定表头（数据行零件名恰好叫 name/Name/名称 不被误跳）
+    if (i === 0 && cells.filter((c) => KNOWN_HEADER_CELLS.includes(c)).length >= 2) continue
     if (cells.length < 3) continue
     const len = Number(cells[1])
     const wid = Number(cells[2])

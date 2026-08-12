@@ -3,7 +3,7 @@
  * 编辑态（三步引导卡）→ 结果态（板材卡片流）→ 单板大图（缩放/平移）。
  * 结果出现时板材卡片逐个淡入 + 轻微上移（stagger 80ms）。
  */
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button, Segmented } from 'antd'
 import { CloseOutlined } from '@ant-design/icons'
@@ -30,6 +30,18 @@ export function SheetFlow() {
   const hoverPartKey = usePlanStore((s) => s.hoverPartKey)
   const [detailIndex, setDetailIndex] = useState<number | null>(null)
   const [histView, setHistView] = useState<'cut' | 'parts'>('cut')
+  const closeBtnRef = useRef<HTMLButtonElement | null>(null)
+
+  // 单板大图 = 模态对话框：ESC 关闭 + 打开时焦点移入关闭按钮（最小模态契约）
+  useEffect(() => {
+    if (detailIndex === null) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setDetailIndex(null)
+    }
+    window.addEventListener('keydown', onKey)
+    closeBtnRef.current?.focus()
+    return () => window.removeEventListener('keydown', onKey)
+  }, [detailIndex])
 
   if (!current) return null
 
@@ -161,7 +173,13 @@ export function SheetFlow() {
               flexShrink: 0,
             }}
           >
-            <Button type="text" icon={<CloseOutlined />} onClick={() => setDetailIndex(null)} aria-label={t('common.close')} />
+            <Button
+              ref={closeBtnRef}
+              type="text"
+              icon={<CloseOutlined />}
+              onClick={() => setDetailIndex(null)}
+              aria-label={t('common.close')}
+            />
             <span style={{ fontWeight: 600, fontSize: 15 }}>
               {t('sheetCard.sheetN', { n: detailIndex + 1 })}{' '}
               {t('sheetCard.of', { total: plan.sheets.length })}
