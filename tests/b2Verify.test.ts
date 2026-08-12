@@ -11,6 +11,7 @@ import { usePlanStore } from '../src/features/cutting/planStore'
 import { useProjectStore } from '../src/features/projects/projectStore'
 import { continueFromHistory } from '../src/features/cutting/historyActions'
 import type { CutPlan, PlanRecord, Project, SheetSpec } from '../src/domain/types'
+import { qty } from '../src/domain/types'
 import { createDefaultSettings } from '../src/domain/materials'
 
 const sheet: SheetSpec = { id: 's1', name: '颗粒板', length: 2440, width: 1220, price: 98 }
@@ -52,7 +53,7 @@ const recA: PlanRecord = {
   sheets: [sheet],
   createdAt: 1000,
   partNames: { a: '甲' },
-  parts: [{ id: 'a', name: '甲', length: 1000, width: 500, quantity: 1 }],
+  parts: [{ id: 'a', name: '甲', length: 1000, width: 500, quantity: qty(1) }],
 }
 const recB: PlanRecord = {
   id: 'recB',
@@ -62,7 +63,7 @@ const recB: PlanRecord = {
   sheets: [sheet],
   createdAt: 2000,
   partNames: { b: '乙' },
-  parts: [{ id: 'b', name: '乙', length: 2000, width: 500, quantity: 1 }],
+  parts: [{ id: 'b', name: '乙', length: 2000, width: 500, quantity: qty(1) }],
 }
 
 beforeEach(async () => {

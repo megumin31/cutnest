@@ -8,6 +8,7 @@ import { validatePlan } from '../src/domain/optimizer/validator'
 import { evaluatePlan, compareScores, wasteRegionsOfLayout } from '../src/domain/optimizer/evaluate'
 import type { PackedSheet, PackItem } from '../src/domain/optimizer/stripPacker'
 import type { Part, SheetSpec, OptimizeSettings } from '../src/domain/types'
+import { qty } from '../src/domain/types'
 import { createDefaultSettings } from '../src/domain/materials'
 
 const sheet: SheetSpec = { id: 's1', name: '2440×1220', length: 2440, width: 1220, price: 100 }
@@ -26,8 +27,8 @@ async function run(parts: Part[], s: OptimizeSettings = settings(), sheets: Shee
 describe('optimizer 基础排样', () => {
   it('两个零件排入一张板，全部出现且过校验', async () => {
     const parts: Part[] = [
-      { id: 'a', name: 'A', length: 1000, width: 500, quantity: 1 },
-      { id: 'b', name: 'B', length: 800, width: 400, quantity: 1 },
+      { id: 'a', name: 'A', length: 1000, width: 500, quantity: qty(1) },
+      { id: 'b', name: 'B', length: 800, width: 400, quantity: qty(1) },
     ]
     const plan = await run(parts)
     expect(plan.sheets.length).toBe(1)
@@ -37,7 +38,7 @@ describe('optimizer 基础排样', () => {
   })
 
   it('同尺寸多数量：数量展开正确', async () => {
-    const parts: Part[] = [{ id: 'a', name: 'A', length: 400, width: 300, quantity: 12 }]
+    const parts: Part[] = [{ id: 'a', name: 'A', length: 400, width: 300, quantity: qty(12) }]
     const plan = await run(parts)
     const total = plan.sheets.reduce((s, sh) => s + sh.placements.length, 0)
     expect(total).toBe(12)
@@ -47,8 +48,8 @@ describe('optimizer 基础排样', () => {
 
   it('数量=0 的零件不出现', async () => {
     const parts: Part[] = [
-      { id: 'a', name: 'A', length: 400, width: 300, quantity: 0 },
-      { id: 'b', name: 'B', length: 400, width: 300, quantity: 2 },
+      { id: 'a', name: 'A', length: 400, width: 300, quantity: qty(0) },
+      { id: 'b', name: 'B', length: 400, width: 300, quantity: qty(2) },
     ]
     const plan = await run(parts)
     const ids = plan.sheets.flatMap((sh) => sh.placements.map((p) => p.partId))
@@ -56,12 +57,20 @@ describe('optimizer 基础排样', () => {
     expect(ids.filter((x) => x === 'b').length).toBe(2)
   })
 
+  it('qty 截断后的数量正确展开（2.9→2）', async () => {
+    const parts: Part[] = [{ id: 'a', name: 'A', length: 400, width: 300, quantity: qty(2.9) }]
+    const plan = await run(parts)
+    const total = plan.sheets.reduce((s, sh) => s + sh.placements.length, 0)
+    expect(total).toBe(2)
+    expect(validatePlan(plan, parts, [sheet], settings()).ok).toBe(true)
+  })
+
   it('空输入报 NO_PARTS', async () => {
     await expect(run([])).rejects.toMatchObject({ code: 'NO_PARTS' })
   })
 
   it('超大零件报 PART_TOO_LARGE', async () => {
-    const parts: Part[] = [{ id: 'big', name: '大', length: 3000, width: 1000, quantity: 1 }]
+    const parts: Part[] = [{ id: 'big', name: '大', length: 3000, width: 1000, quantity: qty(1) }]
     await expect(run(parts)).rejects.toMatchObject({ code: 'PART_TOO_LARGE' })
   })
 
@@ -74,8 +83,8 @@ describe('optimizer 基础排样', () => {
 
   it('相邻零件净距 ≥ kerf（=3）', async () => {
     const parts: Part[] = [
-      { id: 'a', name: 'A', length: 1000, width: 1000, quantity: 2 },
-      { id: 'b', name: 'B', length: 200, width: 200, quantity: 1 },
+      { id: 'a', name: 'A', length: 1000, width: 1000, quantity: qty(2) },
+      { id: 'b', name: 'B', length: 200, width: 200, quantity: qty(1) },
     ]
     const plan = await run(parts)
     const ps = plan.sheets[0].placements
@@ -90,8 +99,8 @@ describe('optimizer 基础排样', () => {
 
   it('stats 含零件总面积与封边米数（排样快照）', async () => {
     const parts: Part[] = [
-      { id: 'a', name: 'A', length: 1200, width: 400, quantity: 2, edgeBand: ['L', 'R'] },
-      { id: 'b', name: 'B', length: 600, width: 300, quantity: 1 },
+      { id: 'a', name: 'A', length: 1200, width: 400, quantity: qty(2), edgeBand: ['L', 'R'] },
+      { id: 'b', name: 'B', length: 600, width: 300, quantity: qty(1) },
     ]
     const plan = await run(parts, settings())
     // 零件总面积 = Σ 已排入实例面积（mm²）
@@ -104,9 +113,9 @@ describe('optimizer 基础排样', () => {
 
   it('旋转封边件的 edgeMeters 按未旋转尺寸统计（方向标签语义）', async () => {
     const parts: Part[] = [
-      { id: 'a', name: 'A', length: 2000, width: 500, quantity: 8, grain: 'any', edgeBand: ['L', 'R'] },
-      { id: 'b', name: 'B', length: 900, width: 600, quantity: 14, grain: 'any', edgeBand: ['T', 'B'] },
-      { id: 'c', name: 'C', length: 600, width: 400, quantity: 30, grain: 'any', edgeBand: ['L'] },
+      { id: 'a', name: 'A', length: 2000, width: 500, quantity: qty(8), grain: 'any', edgeBand: ['L', 'R'] },
+      { id: 'b', name: 'B', length: 900, width: 600, quantity: qty(14), grain: 'any', edgeBand: ['T', 'B'] },
+      { id: 'c', name: 'C', length: 600, width: 400, quantity: qty(30), grain: 'any', edgeBand: ['L'] },
     ]
     const plan = await run(parts, settings({ seed: 1 }))
     // a：L/R 宽度方向 2×500×8 = 8000mm；b：T/B 长度方向 2×900×14 = 25200mm；c：L 宽度方向 400×30 = 12000mm
@@ -118,7 +127,7 @@ describe('optimizer 基础排样', () => {
 
   it('价格核算关闭时仍计算两种计价模式成本（开关只影响展示）', async () => {
     const parts: Part[] = [
-      { id: 'a', name: 'A', length: 2000, width: 1000, quantity: 1, edgeBand: ['T', 'B'] },
+      { id: 'a', name: 'A', length: 2000, width: 1000, quantity: qty(1), edgeBand: ['T', 'B'] },
     ]
     const pricing = {
       enabled: false,
@@ -140,8 +149,8 @@ describe('optimizer 基础排样', () => {
 describe('旋转约束', () => {
   it('grain=alongLength 的零件禁止旋转', async () => {
     const parts: Part[] = [
-      { id: 'a', name: '长条', length: 2400, width: 200, quantity: 1, grain: 'alongLength' },
-      { id: 'b', name: 'B', length: 500, width: 500, quantity: 1, grain: 'any' },
+      { id: 'a', name: '长条', length: 2400, width: 200, quantity: qty(1), grain: 'alongLength' },
+      { id: 'b', name: 'B', length: 500, width: 500, quantity: qty(1), grain: 'any' },
     ]
     const plan = await run(parts, settings())
     const a = plan.sheets.flatMap((s) => s.placements).find((p) => p.partId === 'a')!
@@ -150,7 +159,7 @@ describe('旋转约束', () => {
   })
 
   it('grain 缺省的零件默认禁止旋转', async () => {
-    const parts: Part[] = [{ id: 'a', name: 'A', length: 1000, width: 600, quantity: 1 }]
+    const parts: Part[] = [{ id: 'a', name: 'A', length: 1000, width: 600, quantity: qty(1) }]
     const plan = await run(parts, settings({ quality: 'fast' }))
     const a = plan.sheets.flatMap((s) => s.placements).find((p) => p.partId === 'a')!
     expect(a.rotated).toBe(false)
@@ -162,8 +171,8 @@ describe('旋转约束', () => {
 describe('多板材排样', () => {
   it('开新板选最小能装下的规格：大件开大板、小件开小板', async () => {
     const parts: Part[] = [
-      { id: 'big', name: '大件', length: 2000, width: 1000, quantity: 1 },
-      { id: 'small', name: '小件', length: 800, width: 400, quantity: 1 },
+      { id: 'big', name: '大件', length: 2000, width: 1000, quantity: qty(1) },
+      { id: 'small', name: '小件', length: 800, width: 400, quantity: qty(1) },
     ]
     const plan = await run(parts, settings(), [sheet, sheetSmall])
     expect(plan.sheets.length).toBe(2)
@@ -177,8 +186,8 @@ describe('多板材排样', () => {
 
   it('指定板材的零件开指定规格的板；任意件可混入', async () => {
     const parts: Part[] = [
-      { id: 'a', name: '指定件', length: 700, width: 400, quantity: 1, sheetId: 's2' },
-      { id: 'b', name: '任意件', length: 400, width: 300, quantity: 1 },
+      { id: 'a', name: '指定件', length: 700, width: 400, quantity: qty(1), sheetId: 's2' },
+      { id: 'b', name: '任意件', length: 400, width: 300, quantity: qty(1) },
     ]
     const plan = await run(parts, settings(), [sheet, sheetSmall])
     // 指定件定板型：s2 板；任意件混入同一张板
@@ -190,7 +199,7 @@ describe('多板材排样', () => {
 
   it('指定规格放不下当前零件时报 PART_TOO_LARGE', async () => {
     const parts: Part[] = [
-      { id: 'a', name: '大件', length: 1300, width: 700, quantity: 1, sheetId: 's2' },
+      { id: 'a', name: '大件', length: 1300, width: 700, quantity: qty(1), sheetId: 's2' },
     ]
     await expect(run(parts, settings(), [sheet, sheetSmall])).rejects.toMatchObject({ code: 'PART_TOO_LARGE' })
   })
@@ -199,9 +208,9 @@ describe('多板材排样', () => {
 describe('确定性', () => {
   it('同输入两次运行结果完全一致', async () => {
     const parts: Part[] = [
-      { id: 'a', name: 'A', length: 1200, width: 600, quantity: 3 },
-      { id: 'b', name: 'B', length: 800, width: 400, quantity: 5 },
-      { id: 'c', name: 'C', length: 300, width: 200, quantity: 8 },
+      { id: 'a', name: 'A', length: 1200, width: 600, quantity: qty(3) },
+      { id: 'b', name: 'B', length: 800, width: 400, quantity: qty(5) },
+      { id: 'c', name: 'C', length: 300, width: 200, quantity: qty(8) },
     ]
     const s = settings()
     const p1 = await run(parts, s)
@@ -211,8 +220,8 @@ describe('确定性', () => {
 
   it('不同 seed 结果都合法', async () => {
     const parts: Part[] = [
-      { id: 'a', name: 'A', length: 1200, width: 600, quantity: 3 },
-      { id: 'b', name: 'B', length: 800, width: 400, quantity: 5 },
+      { id: 'a', name: 'A', length: 1200, width: 600, quantity: qty(3) },
+      { id: 'b', name: 'B', length: 800, width: 400, quantity: qty(5) },
     ]
     for (const seed of [1, 2]) {
       const s = settings({ seed })
@@ -229,7 +238,7 @@ describe('取消', () => {
       name: `P${i}`,
       length: 200 + (i % 5) * 60,
       width: 150 + (i % 4) * 50,
-      quantity: 2,
+      quantity: qty(2),
     }))
     const ac = new AbortController()
     ac.abort()
@@ -240,7 +249,7 @@ describe('取消', () => {
   })
 
   it('进度回调单调递增到 1', async () => {
-    const parts: Part[] = [{ id: 'a', name: 'A', length: 400, width: 300, quantity: 6 }]
+    const parts: Part[] = [{ id: 'a', name: 'A', length: 400, width: 300, quantity: qty(6) }]
     const s = settings()
     const seen: number[] = []
     await createOptimizer().optimize({ parts, sheets: [sheet], settings: s }, { onProgress: (p) => seen.push(p) })
@@ -270,14 +279,14 @@ describe('迭代预算（quality 强度锚定）', () => {
 describe('评价函数字典序（已知最优解小用例）', () => {
   it('能用更少张板时绝不选更多张', async () => {
     // 4 个 1200×600：2×2 正好一张板（2406×1206 ≤ 2440×1220）→ 最优 1 张
-    const parts: Part[] = [{ id: 'a', name: 'A', length: 1200, width: 600, quantity: 4 }]
+    const parts: Part[] = [{ id: 'a', name: 'A', length: 1200, width: 600, quantity: qty(4) }]
     const plan = await run(parts, settings({ quality: 'fine' }))
     expect(plan.stats.sheetCount).toBe(1)
   })
 
   it('铺满 2 张板：无余料、无可再利用块', async () => {
     // 600×400：每行 4 个（2412 ≤ 2440）、3 行（1209 ≤ 1220）→ 每张板 12 个
-    const parts: Part[] = [{ id: 'a', name: 'A', length: 600, width: 400, quantity: 24 }]
+    const parts: Part[] = [{ id: 'a', name: 'A', length: 600, width: 400, quantity: qty(24) }]
     const plan = await run(parts)
     expect(plan.stats.sheetCount).toBe(2)
     expect(plan.stats.reusableWasteBlocks).toBe(0)

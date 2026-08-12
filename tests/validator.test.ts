@@ -4,10 +4,11 @@
 import { describe, it, expect } from 'vitest'
 import { validatePlan } from '../src/domain/optimizer/validator'
 import type { CutPlan, Part, Placement, SheetSpec, OptimizeSettings } from '../src/domain/types'
+import { qty } from '../src/domain/types'
 import { createDefaultSettings } from '../src/domain/materials'
 
 const sheet: SheetSpec = { id: 's1', name: '2440×1220', length: 2440, width: 1220, price: 100 }
-const parts: Part[] = [{ id: 'a', name: 'A', length: 1000, width: 500, quantity: 2 }]
+const parts: Part[] = [{ id: 'a', name: 'A', length: 1000, width: 500, quantity: qty(2) }]
 const settings: OptimizeSettings = createDefaultSettings()
 
 function placement(overrides: Partial<Placement>): Placement {
@@ -78,7 +79,7 @@ describe('validator', () => {
   })
 
   it('拦截违反旋转约束', () => {
-    const partsFixed: Part[] = [{ id: 'a', name: 'A', length: 1000, width: 500, quantity: 1, grain: 'alongLength' }]
+    const partsFixed: Part[] = [{ id: 'a', name: 'A', length: 1000, width: 500, quantity: qty(1), grain: 'alongLength' }]
     const p = plan([placement({ rotated: true, len: 500, wid: 1000 })])
     const v = validatePlan(p, partsFixed, [sheet], settings)
     expect(v.ok).toBe(false)
@@ -86,7 +87,7 @@ describe('validator', () => {
   })
 
   it('grain 缺省（未勾选旋转）的零件旋转即拦截', () => {
-    const partsNoGrain: Part[] = [{ id: 'a', name: 'A', length: 1000, width: 500, quantity: 1 }]
+    const partsNoGrain: Part[] = [{ id: 'a', name: 'A', length: 1000, width: 500, quantity: qty(1) }]
     const p = plan([placement({ rotated: true, len: 500, wid: 1000 })])
     const v = validatePlan(p, partsNoGrain, [sheet], settings)
     expect(v.ok).toBe(false)
@@ -94,7 +95,7 @@ describe('validator', () => {
   })
 
   it('指定板材的零件出现在非指定规格的板即拦截', () => {
-    const partsFixed: Part[] = [{ id: 'a', name: 'A', length: 1000, width: 500, quantity: 1, sheetId: 's2' }]
+    const partsFixed: Part[] = [{ id: 'a', name: 'A', length: 1000, width: 500, quantity: qty(1), sheetId: 's2' }]
     const sheet2: SheetSpec = { id: 's2', name: '1200×600', length: 1200, width: 600, price: 40 }
     const p: CutPlan = {
       ...plan([]),

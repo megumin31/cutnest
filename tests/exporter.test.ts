@@ -9,12 +9,13 @@ import { renderPDF, needsCjkFont, needsThaiFont, pdfTexts, PdfFontError } from '
 import { toScene } from '../src/domain/exporter/toScene'
 import { subsetFontToTtf } from '../src/infra/fonts/subset'
 import type { CutPlan, Part, SheetSpec, ExportPrefs } from '../src/domain/types'
+import { qty } from '../src/domain/types'
 import { createDefaultSettings } from '../src/domain/materials'
 
 const sheet: SheetSpec = { id: 's1', name: '2440×1220', length: 2440, width: 1220, price: 100 }
 const parts: Part[] = [
-  { id: 'a', name: '侧板', length: 1200, width: 400, quantity: 2 },
-  { id: 'b', name: '抽屉面板', length: 500, width: 300, quantity: 3 },
+  { id: 'a', name: '侧板', length: 1200, width: 400, quantity: qty(2) },
+  { id: 'b', name: '抽屉面板', length: 500, width: 300, quantity: qty(3) },
 ]
 const prefs: ExportPrefs = {
   pdf: { watermark: { enabled: true, text: '样品水印' }, companyInfo: { name: '木工坊' } },

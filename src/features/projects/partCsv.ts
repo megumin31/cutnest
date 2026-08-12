@@ -127,7 +127,7 @@ export function parsePartsCsv(text: string, sheetIdOf: (name: string) => string 
     const len = Number(cells[1])
     const wid = Number(cells[2])
     if (!Number.isFinite(len) || !Number.isFinite(wid) || len <= 0 || wid <= 0) continue
-    const qty = cells.length > 3 ? Math.max(1, Math.round(Number(cells[3])) || 1) : 1
+    const qty = cells.length > 3 ? Math.max(1, Math.trunc(Number(cells[3])) || 1) : 1
     const g = (cells[4] ?? '').trim().toLowerCase()
     const grain: 'alongLength' | 'any' | undefined = /^(不可|no|false)/.test(g)
       ? 'alongLength'

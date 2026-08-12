@@ -4,6 +4,7 @@
 import { describe, it, expect } from 'vitest'
 import { serializePartsCsv, parsePartsCsv, decodeCsvText } from '../src/features/projects/partCsv'
 import type { Part } from '../src/domain/types'
+import { qty } from '../src/domain/types'
 
 const sheetName = new Map<string, string>([
   ['s1', '颗粒板'],
@@ -13,8 +14,8 @@ const sheetName = new Map<string, string>([
 describe('serializePartsCsv', () => {
   it('导出含表头与全部字段，可往返解析', () => {
     const parts: Part[] = [
-      { id: 'a', name: '侧板', length: 2440, width: 400, quantity: 4, grain: 'alongLength', sheetId: 's1', edgeBand: ['L', 'R'] },
-      { id: 'b', name: '层板', length: 800, width: 400, quantity: 6 },
+      { id: 'a', name: '侧板', length: 2440, width: 400, quantity: qty(4), grain: 'alongLength', sheetId: 's1', edgeBand: ['L', 'R'] },
+      { id: 'b', name: '层板', length: 800, width: 400, quantity: qty(6) },
     ]
     const csv = serializePartsCsv(parts, (id) => sheetName.get(id))
     expect(csv.charCodeAt(0)).toBe(0xfeff) // UTF-8 BOM（Excel 兼容）
@@ -25,7 +26,7 @@ describe('serializePartsCsv', () => {
       name: '侧板',
       length: 2440,
       width: 400,
-      quantity: 4,
+      quantity: qty(4),
       grain: 'alongLength',
       sheetId: 's1',
       edgeBand: ['L', 'R'],
@@ -34,14 +35,14 @@ describe('serializePartsCsv', () => {
   })
 
   it('名称含逗号/引号时正确转义', () => {
-    const parts: Part[] = [{ id: 'a', name: '侧板,带"槽"', length: 100, width: 50, quantity: 1 }]
+    const parts: Part[] = [{ id: 'a', name: '侧板,带"槽"', length: 100, width: 50, quantity: qty(1) }]
     const csv = serializePartsCsv(parts, () => undefined)
     const rows = parsePartsCsv(csv, () => undefined)
     expect(rows[0].name).toBe('侧板,带"槽"')
   })
 
   it('导出带 UTF-8 BOM（Excel 兼容）且解析自动跳过', () => {
-    const parts: Part[] = [{ id: 'a', name: '侧板', length: 100, width: 50, quantity: 1 }]
+    const parts: Part[] = [{ id: 'a', name: '侧板', length: 100, width: 50, quantity: qty(1) }]
     const csv = serializePartsCsv(parts, () => undefined)
     expect(csv.charCodeAt(0)).toBe(0xfeff)
     const rows = parsePartsCsv(csv, () => undefined)
@@ -79,7 +80,7 @@ describe('parsePartsCsv', () => {
   it('兼容批量粘贴文本格式（名称 长 宽 数量）', () => {
     const rows = parsePartsCsv('侧板 2440 400 4\n层板 800 400\n', () => undefined)
     expect(rows).toHaveLength(2)
-    expect(rows[0]).toMatchObject({ name: '侧板', length: 2440, width: 400, quantity: 4 })
+    expect(rows[0]).toMatchObject({ name: '侧板', length: 2440, width: 400, quantity: qty(4) })
     expect(rows[1].quantity).toBe(1)
   })
 

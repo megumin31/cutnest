@@ -7,6 +7,21 @@
 /** 浮点比较精度（mm） */
 export const EPSILON = 0.001
 
+/**
+ * 数量（整数 ≥ 0）——Part.quantity 专用品牌类型：从源头杜绝浮点数量。
+ * 唯一生产点 qty()（截断法）；禁止 as Quantity 绕过（AGENTS.md 纪律）。
+ */
+export type Quantity = number & { readonly __quantity: unique symbol }
+
+/**
+ * number → Quantity：截断法（用户输入更正语义：2.9→2、2.1→2、0.4→0），
+ * 非有限值/负数归 0（0 = 不参与计算的显式状态）。
+ */
+export function qty(v: number): Quantity {
+  const t = Math.trunc(v)
+  return (Number.isFinite(t) && t > 0 ? t : 0) as Quantity
+}
+
 /** 零件 —— 长×宽（行业惯例：长度 = 纹理方向轴，宽度 = 垂直方向） */
 export interface Part {
   id: string
@@ -20,7 +35,8 @@ export interface Part {
   length: number
   /** 宽度方向的尺寸 (mm，整数)，沿 Y 轴；不要求 ≤ length */
   width: number
-  quantity: number
+  /** 数量（整数 ≥ 0；唯一生产点 qty()，从源头杜绝浮点数） */
+  quantity: Quantity
   /** 旋转标记：'any' = 允许 90° 旋转；缺省 / 'alongLength' = 禁止旋转（默认） */
   grain?: 'alongLength' | 'any'
   /** 指定板材（项目板材库中的规格 id）；缺省 = 板材库中任意规格均可 */

@@ -6,6 +6,7 @@ import { normalizeOptimizeError, OptimizeError, createOptimizer } from '../src/d
 import { runOptimize } from '../src/infra/worker/runOptimize'
 import { createDefaultSettings } from '../src/domain/materials'
 import type { Part, SheetSpec } from '../src/domain/types'
+import { qty } from '../src/domain/types'
 
 describe('normalizeOptimizeError', () => {
   it('OptimizeError → 保留 code 与 message', () => {
@@ -42,7 +43,7 @@ describe('runOptimize fallback 路径（无 Worker）', () => {
 
   it('业务错误码保留（与 Worker 路径对称）：PART_TOO_LARGE 不降级为 UNKNOWN', async () => {
     vi.stubGlobal('Worker', undefined)
-    const parts: Part[] = [{ id: 'a', name: 'A', length: 5000, width: 300, quantity: 1 }]
+    const parts: Part[] = [{ id: 'a', name: 'A', length: 5000, width: 300, quantity: qty(1) }]
     const got: { code?: string; message?: string } = {}
     const task = runOptimize(
       { parts, sheets: [sheet], settings },
@@ -83,7 +84,7 @@ describe('runOptimize fallback 路径（无 Worker）', () => {
 
   it('正常成功路径 onResult 收到方案（未在创建时同步 throw）', async () => {
     vi.stubGlobal('Worker', undefined)
-    const parts: Part[] = [{ id: 'a', name: 'A', length: 400, width: 300, quantity: 1 }]
+    const parts: Part[] = [{ id: 'a', name: 'A', length: 400, width: 300, quantity: qty(1) }]
     const plan = await createOptimizer().optimize({ parts, sheets: [sheet], settings })
     expect(plan.sheets.length).toBe(1)
   })

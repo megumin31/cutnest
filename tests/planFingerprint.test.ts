@@ -4,6 +4,7 @@
 import { describe, it, expect } from 'vitest'
 import { planFingerprint, findDuplicatePlan, projectInputFingerprint, inputMatches } from '../src/features/cutting/planFingerprint'
 import type { CutPlan, Part, PlanRecord, Project } from '../src/domain/types'
+import { qty } from '../src/domain/types'
 import { createDefaultSettings } from '../src/domain/materials'
 
 const sheet = { id: 's1', name: '颗粒板', length: 2440, width: 1220, price: 98 }
@@ -88,7 +89,7 @@ describe('projectInputFingerprint / inputMatches（dirty 派生）', () => {
     name: '侧板',
     length: 1000,
     width: 500,
-    quantity: 2,
+    quantity: qty(2),
     grain: 'alongLength',
     ...over,
   })
@@ -111,7 +112,7 @@ describe('projectInputFingerprint / inputMatches（dirty 派生）', () => {
   it('同输入同指纹；零件/板材/设置任一变化 → 指纹变', () => {
     expect(projectInputFingerprint(project())).toBe(projectInputFingerprint(project({ updatedAt: 999 })))
     expect(projectInputFingerprint(project())).not.toBe(
-      projectInputFingerprint(project({ parts: [part({ quantity: 3 })] })),
+      projectInputFingerprint(project({ parts: [part({ quantity: qty(3) })] })),
     )
     expect(projectInputFingerprint(project())).not.toBe(
       projectInputFingerprint(project({ settings: createDefaultSettings({ kerf: 5 }) })),

@@ -112,7 +112,7 @@ interface Part {
   name: string                 // "侧板"、"抽屉面板"…
   length: number               // 长 (mm，整数)
   width: number                // 宽 (mm，整数)
-  quantity: number
+  quantity: number               // 数量（整数 ≥ 0；品牌类型 Quantity，唯一生产点 qty() 截断法——见 types.ts 注释，禁止 as 绕过）
   grain?: 'alongLength' | 'any'   // 旋转标记：'any' = 可旋转；缺省/'alongLength' = 禁止旋转（默认）
   sheetId?: string             // 指定板材（项目板材库中的规格 id）；缺省 = 板材库中任意规格均可
   edgeBand?: ('L'|'R'|'T'|'B')[]  // 封边需求：仅用于 PDF 标注 + 成本核算，不参与排样

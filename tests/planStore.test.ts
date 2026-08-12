@@ -7,11 +7,13 @@
  * storage 走真实实现（fake-indexeddb/auto 注入 IndexedDB），不 mock 排序/分配假设。
  */
 import 'fake-indexeddb/auto'
+import Dexie from 'dexie'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { usePlanStore, partKey } from '../src/features/cutting/planStore'
 import { planFingerprint } from '../src/features/cutting/planFingerprint'
 import { db, storage } from '../src/infra/storage'
 import type { CutPlan, PlanRecord, Project, SheetSpec } from '../src/domain/types'
+import { qty } from '../src/domain/types'
 import { createDefaultSettings } from '../src/domain/materials'
 
 const sheet: SheetSpec = { id: 's1', name: '颗粒板', length: 2440, width: 1220, price: 98 }
@@ -38,7 +40,7 @@ function makeProject(id: string): Project {
   return {
     id,
     name: '测试项目',
-    parts: [{ id: 'p1', name: '侧板', length: 1000, width: 500, quantity: 1 }],
+    parts: [{ id: 'p1', name: '侧板', length: 1000, width: 500, quantity: qty(1) }],
     sheets: [sheet],
     settings: createDefaultSettings(),
     exportPrefs: {
@@ -240,5 +242,46 @@ describe('saveToHistory', () => {
     expect(usePlanStore.getState().historyRev).toBe(1)
     await usePlanStore.getState().saveToHistory(project, makePlan(1))
     expect(usePlanStore.getState().historyRev).toBe(2) // dup 覆盖也触发刷新
+  })
+})
+
+describe('storage v4 迁移（存量浮点 quantity 截断清洗）', () => {
+  it('v3 时代写入的小数数量在升级时被截断', async () => {
+    await db.delete()
+    // 用 v3 schema 的独立实例写入旧数据（模拟升级前落库的浮点数量）
+    const oldDb = new Dexie('cut3')
+    oldDb.version(3).stores({
+      projects: 'id, updatedAt, createdAt',
+      cutPlans: 'id, projectId, createdAt',
+      materials: 'id',
+      settings: 'key',
+      auth: 'key',
+    })
+    await oldDb.open()
+    await oldDb.table('projects').put({
+      id: 'legacy',
+      name: '旧项目',
+      parts: [
+        { id: 'p1', name: 'A', length: 100, width: 50, quantity: 2.5 },
+        { id: 'p2', name: 'B', length: 100, width: 50, quantity: 0.4 },
+      ],
+      sheets: [sheet],
+      settings: createDefaultSettings(),
+      exportPrefs: {
+        pdf: { watermark: { enabled: false, text: '' }, companyInfo: { name: '' } },
+        dxf: { cutDirection: 'climb' },
+        unit: 'mm',
+      },
+      createdAt: 0,
+      updatedAt: 0,
+      // 模拟 v3 数据：parts 的 quantity 为浮点（类型断言仅为模拟旧库载荷，非运行时入口）
+    } as unknown as Project)
+    await oldDb.close()
+
+    // 正式实例（版本 4）重开 → 触发 v4 迁移
+    await db.open()
+    const proj = await storage.getProject('legacy')
+    expect(proj?.parts[0]?.quantity).toBe(2) // 2.5 → 2（截断法）
+    expect(proj?.parts[1]?.quantity).toBe(0) // 0.4 → 0
   })
 })

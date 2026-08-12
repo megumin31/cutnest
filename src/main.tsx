@@ -15,6 +15,7 @@ import { ErrorBoundary } from './ui/ErrorBoundary'
 import { AppShell } from './ui/AppShell'
 import { createProject } from './features/projects/projectStore'
 import { DEFAULT_SHEETS, createDefaultSettings } from './domain/materials'
+import { qty } from './domain/types'
 import './ui/styles.css'
 
 async function seedDemoProject() {
@@ -24,12 +25,12 @@ async function seedDemoProject() {
   if (existing.length > 0) return
   const demo = await createProject('示例 · 客厅柜')
   demo.parts = [
-    { id: 'p1', name: '侧板', length: 2440, width: 400, quantity: 4, grain: 'alongLength', edgeBand: ['L', 'R'] },
-    { id: 'p2', name: '横档', length: 2440, width: 250, quantity: 2, grain: 'alongLength' },
-    { id: 'p3', name: '抽屉面板', length: 1200, width: 400, quantity: 8, edgeBand: ['T', 'B'] },
-    { id: 'p4', name: '层板', length: 800, width: 400, quantity: 6 },
-    { id: 'p5', name: '竖档', length: 400, width: 300, quantity: 12 },
-    { id: 'p6', name: '背板条', length: 300, width: 200, quantity: 16 },
+    { id: 'p1', name: '侧板', length: 2440, width: 400, quantity: qty(4), grain: 'alongLength', edgeBand: ['L', 'R'] },
+    { id: 'p2', name: '横档', length: 2440, width: 250, quantity: qty(2), grain: 'alongLength' },
+    { id: 'p3', name: '抽屉面板', length: 1200, width: 400, quantity: qty(8), edgeBand: ['T', 'B'] },
+    { id: 'p4', name: '层板', length: 800, width: 400, quantity: qty(6) },
+    { id: 'p5', name: '竖档', length: 400, width: 300, quantity: qty(12) },
+    { id: 'p6', name: '背板条', length: 300, width: 200, quantity: qty(16) },
   ]
   demo.sheets = [DEFAULT_SHEETS[0]]
   demo.settings = createDefaultSettings()

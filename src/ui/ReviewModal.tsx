@@ -20,6 +20,7 @@ import { useProjectStore } from '../features/projects/projectStore'
 import { getApiClient, ApiError } from '../infra/api'
 import { platform } from '../infra/platform'
 import type { ReviewRow } from '../domain/types'
+import { qty } from '../domain/types'
 
 const api = getApiClient()
 
@@ -110,7 +111,7 @@ export function ReviewModal() {
       name: r.name.trim(),
       length: Math.round(r.length),
       width: Math.round(r.width),
-      quantity: Math.max(1, Math.round(r.quantity)),
+      quantity: qty(Math.max(1, r.quantity)),
     }))
     updateParts([...existing, ...newParts])
     message.success(t('review.imported', { count: valid.length }))
@@ -177,9 +178,10 @@ export function ReviewModal() {
             size="small"
             variant="borderless"
             min={1}
+            step={1}
             value={v}
             style={{ width: '100%' }}
-            onChange={(x) => s.patchRow(i, { quantity: x ?? 0 })}
+            onChange={(x) => s.patchRow(i, { quantity: qty(x ?? 0) })}
           />
         </div>
       ),

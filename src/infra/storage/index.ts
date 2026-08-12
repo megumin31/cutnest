@@ -72,7 +72,30 @@ class Cut3Db extends Dexie {
           }
         })
     })
-  }
+    // v4：数量整数化—— projects.parts / cutPlans.parts 的 quantity 截断清洗
+    // （旧 UI 可输入小数数量；截断与输入更正语义一致，见 domain/types qty()）
+    this.version(4).upgrade((tx) => {
+      const fixParts = (parts: unknown) => {
+        if (!Array.isArray(parts)) return
+        for (const p of parts) {
+          if (!p || typeof p !== 'object') continue
+          if (!('quantity' in p)) continue
+          const q = p.quantity
+          if (typeof q === 'number') p.quantity = Math.trunc(q)
+        }
+      }
+      return tx
+        .table('projects')
+        .toCollection()
+        .modify((proj) => fixParts((proj as { parts?: unknown }).parts))
+        .then(() =>
+          tx
+            .table('cutPlans')
+            .toCollection()
+            .modify((r) => fixParts((r as { parts?: unknown }).parts)),
+        )
+    })
+}
 }
 
 export const db = new Cut3Db()

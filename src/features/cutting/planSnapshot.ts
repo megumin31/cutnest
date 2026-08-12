@@ -4,6 +4,7 @@
  * 仅可恢复尺寸/数量/名字；grain/sheetId/edgeBand 无排样时快照信息，取安全默认。
  */
 import type { CutPlan, Part } from '../../domain/types'
+import { qty } from '../../domain/types'
 
 export function rebuildPartsFromPlan(plan: CutPlan, partNames: Record<string, string> | null): Part[] {
   const byId = new Map<string, { length: number; width: number; quantity: number }>()
@@ -21,7 +22,7 @@ export function rebuildPartsFromPlan(plan: CutPlan, partNames: Record<string, st
           cur.width = Math.max(cur.width, width)
         }
       } else {
-        byId.set(p.partId, { length, width, quantity: 1 })
+        byId.set(p.partId, { length, width, quantity: qty(1) })
       }
     }
   }
@@ -30,7 +31,7 @@ export function rebuildPartsFromPlan(plan: CutPlan, partNames: Record<string, st
     name: partNames?.[id] ?? id,
     length: v.length,
     width: v.width,
-    quantity: v.quantity,
+    quantity: qty(v.quantity),
     grain: 'alongLength' as const,
   }))
 }

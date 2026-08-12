@@ -13,6 +13,7 @@ import { useAuthStore } from '../features/licensing/authStore'
 import { useReviewStore } from '../features/recognition/reviewStore'
 import { platform } from '../infra/platform'
 import type { Part } from '../domain/types'
+import { qty } from '../domain/types'
 import { toMm } from '../domain/units'
 
 let partSeq = 0
@@ -44,7 +45,7 @@ export function PartsWorkspace() {
       name: '',
       length: 0,
       width: 0,
-      quantity: 1,
+      quantity: qty(1),
       grain: 'alongLength',
     })
   }
@@ -71,7 +72,7 @@ export function PartsWorkspace() {
         name: r.name,
         length: r.length,
         width: r.width,
-        quantity: r.quantity,
+        quantity: qty(r.quantity),
         grain: r.grain,
         sheetId: r.sheetId,
         edgeBand: r.edgeBand,
@@ -96,14 +97,14 @@ export function PartsWorkspace() {
     for (const line of lines) {
       const m = line.match(/^(\S+)\s+([\d.]+)\s+([\d.]+)(?:\s+(\d+))?$/)
       if (!m) continue
-      const [, name, length, width, qty] = m
+      const [, name, length, width, qtyText] = m
       if (!name) continue // 正则组 1 必匹配，此处仅为 TS 收窄
       parsed.push({
         id: `part-${Date.now()}-${partSeq++}`,
         name,
         length: Math.max(1, Math.round(Number(length))),
         width: Math.max(1, Math.round(Number(width))),
-        quantity: qty ? Math.max(1, parseInt(qty, 10)) : 1,
+        quantity: qtyText ? qty(Math.max(1, parseInt(qtyText, 10))) : qty(1),
       })
     }
     if (parsed.length === 0) {
@@ -196,11 +197,12 @@ export function PartsWorkspace() {
           size="small"
           variant="borderless"
           min={0}
+          step={1}
           controls={false}
           className="num-center"
           value={v}
           style={{ width: '100%' }}
-          onChange={(x) => patch(r.id, { quantity: Math.max(0, x ?? 0) })}
+          onChange={(x) => patch(r.id, { quantity: qty(x ?? 0) })}
         />
       ),
     },

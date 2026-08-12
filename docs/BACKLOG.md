@@ -25,6 +25,7 @@
 | 取消信号用标准 throwIfAborted；ARCHITECTURE §4.1 澄清 WHATWG 标准接口允许 | 修 | `8feb4f0` |
 | 切割图选中/悬停联动（图上高亮/变暗/跨板跳页/空白清空） | 修 | `bfa3da0`~`bfeea05`（6 个 commit） |
 | D1 历史视图顶栏导出被 dirty 误伤 | 随 dirty 派生化自动修复（`8a95420`） | — |
+| **零件数量整数化（浮点 quantity 从源头杜绝）**：Part.quantity 品牌类型 `Quantity`（唯一生产点 `qty()` 截断法，禁止 `as Quantity`）；UI 全入口（工作区/审查表/批量粘贴/CSV/OCR 导入）走 qty 截断更正（不报错）；storage v4 迁移清洗存量；optimize 直接拿整数实例（类型保证，无运行时防御） | 修 | 未提交（本次会话） |
 
 ## 2. 已裁决、待决或已关闭
 
