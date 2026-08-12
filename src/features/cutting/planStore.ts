@@ -225,11 +225,14 @@ export const usePlanStore = create<PlanState>((set, get) => ({
         fingerprint,
       }
       await storage.savePlan(record)
-      // 裁剪：保留最近 50 条
-      if (all.length + 1 > HISTORY_LIMIT) {
-        const excess = all.slice(HISTORY_LIMIT - 1)
-        await Promise.all(excess.map((r) => storage.deletePlan(r.id)))
-      }
+    }
+    // 保存后统一收敛：无论新增/覆盖，超 50 就删最旧。
+    // 显式按 createdAt 降序排序（不依赖 listPlans 的返回方向契约）；
+    // 以保存后真实状态为准（不依赖"保存前数量 +1"的推理），遗留超限数据一并收敛。
+    const after = (await storage.listPlans(project.id)).sort((a, b) => b.createdAt - a.createdAt)
+    const excess = after.slice(HISTORY_LIMIT)
+    if (excess.length > 0) {
+      await Promise.all(excess.map((r) => storage.deletePlan(r.id)))
     }
     // 落库成功才通知刷新（status='done' 早于落库，历史列表以本信号为准）
     set((s) => ({ historyRev: s.historyRev + 1 }))

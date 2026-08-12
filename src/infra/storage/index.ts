@@ -114,6 +114,11 @@ export const storage: StorageApi = {
       await db.cutPlans.where('projectId').equals(id).delete()
     })
   },
+  /**
+   * 该项目的全部历史记录，按 createdAt 降序（最新在前）——
+   * Dexie sortBy 尊重 reverse() 方向（dir='prev' → 降序），勿假设恒升序。
+   * HistoryPanel 直接按此顺序展示；依赖顺序的调用方须显式排序（勿依赖本契约）。
+   */
   async listPlans(projectId) {
     return db.cutPlans.where('projectId').equals(projectId).reverse().sortBy('createdAt')
   },
