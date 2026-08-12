@@ -3,13 +3,14 @@
  * 导出列：名称,长,宽,数量,旋转,板材,封边（Excel 可直接打开）；
  * 导入兼容本格式与批量粘贴文本格式（"名称 长 宽 [数量]"）。
  */
-import type { Part } from '../../domain/types'
+import type { Part, Quantity } from '../../domain/types'
+import { qty } from '../../domain/types'
 
 export interface PartRow {
   name: string
   length: number
   width: number
-  quantity: number
+  quantity: Quantity
   grain?: 'alongLength' | 'any'
   sheetId?: string
   edgeBand?: ('L' | 'R' | 'T' | 'B')[]
@@ -127,7 +128,8 @@ export function parsePartsCsv(text: string, sheetIdOf: (name: string) => string 
     const len = Number(cells[1])
     const wid = Number(cells[2])
     if (!Number.isFinite(len) || !Number.isFinite(wid) || len <= 0 || wid <= 0) continue
-    const qty = cells.length > 3 ? Math.max(1, Math.trunc(Number(cells[3])) || 1) : 1
+    // 数量与工作区输入同一更正语义（qty 截断：2.9→2、0.4→0；0 = 不参与计算）
+    const quantity = cells.length > 3 ? qty(Number(cells[3])) : qty(1)
     const g = (cells[4] ?? '').trim().toLowerCase()
     const grain: 'alongLength' | 'any' | undefined = /^(不可|no|false)/.test(g)
       ? 'alongLength'
@@ -148,7 +150,7 @@ export function parsePartsCsv(text: string, sheetIdOf: (name: string) => string 
       name: cells[0].trim(),
       length: Math.round(len),
       width: Math.round(wid),
-      quantity: qty,
+      quantity,
       grain,
       sheetId,
       edgeBand: edgeBand.length > 0 ? edgeBand : undefined,

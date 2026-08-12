@@ -72,7 +72,7 @@ export function PartsWorkspace() {
         name: r.name,
         length: r.length,
         width: r.width,
-        quantity: qty(r.quantity),
+        quantity: r.quantity,
         grain: r.grain,
         sheetId: r.sheetId,
         edgeBand: r.edgeBand,
@@ -104,7 +104,7 @@ export function PartsWorkspace() {
         name,
         length: Math.max(1, Math.round(Number(length))),
         width: Math.max(1, Math.round(Number(width))),
-        quantity: qtyText ? qty(Math.max(1, parseInt(qtyText, 10))) : qty(1),
+        quantity: qtyText ? qty(parseInt(qtyText, 10)) : qty(1),
       })
     }
     if (parsed.length === 0) {

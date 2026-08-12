@@ -120,4 +120,9 @@ describe('parsePartsCsv', () => {
     const rows = parsePartsCsv('name 100 50\n侧板 400 200 3', () => undefined)
     expect(rows.map((r) => r.name)).toEqual(['name', '侧板'])
   })
+
+  it('小数数量截断（与工作区 qty 同语义：2.9→2、0.4→0、0→0）', () => {
+    const rows = parsePartsCsv('A,100,50,2.9\nB,100,50,0.4\nC,100,50,0\n', () => undefined)
+    expect(rows.map((r) => r.quantity)).toEqual([qty(2), qty(0), qty(0)])
+  })
 })

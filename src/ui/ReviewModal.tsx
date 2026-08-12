@@ -111,7 +111,7 @@ export function ReviewModal() {
       name: r.name.trim(),
       length: Math.round(r.length),
       width: Math.round(r.width),
-      quantity: qty(Math.max(1, r.quantity)),
+      quantity: qty(r.quantity),
     }))
     updateParts([...existing, ...newParts])
     message.success(t('review.imported', { count: valid.length }))
