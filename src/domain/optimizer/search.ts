@@ -123,8 +123,10 @@ export function search(params: SearchParams): SearchOutcome {
     }
   }
   if (!bestResult || !bestScore) {
-    // 退化输入（任何序都排不出）——由调用方保证不会发生
-    return { result: { sheets: [] }, score: { sheetCount: 0, compactness: 0, reusableWasteBlocks: 0, largestReusableWaste: 0 } }
+    // 预检（fitsAnyOrientation）已保证每个零件至少一个方向可排、packer 保证性 fallback 兜底，
+    // 任何排布序都能排出——此处正常不可达；若到达说明预检与 packer 判定漂移，
+    // 在正确的位置炸（而不是落到 validator 的误导信息）。
+    throw new Error('排样搜索空间为空：任何排布顺序都不可行（预检应已拦截，疑似预检与排样器判定漂移）')
   }
 
   // 温度单位为"紧凑度劣化的毫米数"：1000mm → 0.001mm（对应用权重 1e12 时期的 T0=1e15/T1=1e9，

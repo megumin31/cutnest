@@ -207,7 +207,7 @@ interface PlanRecord {
 ```
 optimizer/
 ├── index.ts          # createOptimizer(): Optimizer 接口（settings 唯一来源 = OptimizeInput.settings）
-├── stripPacker.ts    # skyline 排样：按长度降序 → 逐块堆叠（零件向板材一端挤，余料集中在尾部成整块）
+├── stripPacker.ts    # skyline 排样：按长度降序 → 逐块堆叠（零件向板材一端挤，余料集中在尾部成整块；可旋转零件原方向在全部合格板放不下时自动旋转 fallback——仅保证可行性，不参与质量决策）
 ├── search.ts         # 模拟退火：扰动（交换/旋转/改顺序），固定 seed，timeLimitMs 预算
 ├── evaluate.ts       # 字典序评分：① 用板张数最少 ② 余料最集中
 └── validator.ts      # 校验：无重叠、无越界、间距 ≥ kerf（任何方案必须过校验才输出）

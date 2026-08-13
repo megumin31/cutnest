@@ -61,7 +61,8 @@ describe('runOptimize fallback 路径（无 Worker）', () => {
     await new Promise((r) => setTimeout(r, 50))
     task.cancel()
     expect(got.code).toBe('PART_TOO_LARGE')
-    expect(got.message).toContain('大于板材库')
+    expect(got.message).toContain('任何方向都放不进板材库中可用规格')
+    expect(got.message).toContain('「A」') // B9：报错带零件名称
   })
 
   it('NO_PARTS 业务码保留', async () => {

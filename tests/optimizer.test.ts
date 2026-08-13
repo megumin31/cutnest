@@ -6,7 +6,7 @@ import { createOptimizer, usableArea } from '../src/domain/optimizer'
 import { iterationBudget } from '../src/domain/optimizer/search'
 import { validatePlan } from '../src/domain/optimizer/validator'
 import { evaluatePlan, compareScores, wasteRegionsOfLayout } from '../src/domain/optimizer/evaluate'
-import type { PackedSheet, PackItem } from '../src/domain/optimizer/stripPacker'
+import { packSequence, type PackedSheet, type PackItem, type SheetLibraryEntry } from '../src/domain/optimizer/stripPacker'
 import type { Part, SheetSpec, OptimizeSettings } from '../src/domain/types'
 import { qty } from '../src/domain/types'
 import { createDefaultSettings } from '../src/domain/materials'
@@ -202,6 +202,89 @@ describe('多板材排样', () => {
       { id: 'a', name: '大件', length: 1300, width: 700, quantity: qty(1), sheetId: 's2' },
     ]
     await expect(run(parts, settings(), [sheet, sheetSmall])).rejects.toMatchObject({ code: 'PART_TOO_LARGE' })
+  })
+})
+
+describe('B1 旋转-only-fit（保证性 fallback）', () => {
+  it('可旋转零件仅旋转后能放入 → 成功且 rotated=true、过 validator', async () => {
+    // 1210×2430：未旋转槽 1213×2433 放不进 2440×1220；旋转后槽 2433×1213 放得下
+    const parts: Part[] = [{ id: 'rot', name: '旋转件', length: 1210, width: 2430, quantity: qty(1), grain: 'any' }]
+    const plan = await run(parts, settings())
+    expect(plan.sheets.length).toBe(1)
+    const pl = plan.sheets[0].placements[0]
+    expect(pl.rotated).toBe(true)
+    expect(pl.len).toBe(2430)
+    expect(pl.wid).toBe(1210)
+    expect(validatePlan(plan, parts, [sheet], settings()).ok).toBe(true)
+  })
+
+  it('同尺寸 grain=alongLength → 仍报 PART_TOO_LARGE（fallback 不越权）', async () => {
+    const parts: Part[] = [
+      { id: 'locked', name: '锁定件', length: 1210, width: 2430, quantity: qty(1), grain: 'alongLength' },
+    ]
+    await expect(run(parts, settings())).rejects.toMatchObject({ code: 'PART_TOO_LARGE' })
+  })
+
+  it('旋转-only-fit + sheetId → 只进指定规格板', async () => {
+    const parts: Part[] = [
+      { id: 'rot2', name: '旋转指定件', length: 1210, width: 2430, quantity: qty(1), grain: 'any', sheetId: 's1' },
+    ]
+    const plan = await run(parts, settings(), [sheet, sheetSmall])
+    expect(plan.sheets.length).toBe(1)
+    expect(plan.sheets[0].sheetSpecId).toBe('s1')
+    expect(plan.sheets[0].placements[0].rotated).toBe(true)
+    expect(validatePlan(plan, parts, [sheet, sheetSmall], settings()).ok).toBe(true)
+  })
+
+  it('旋转-only-fit + sheetId 指向装不下的规格 → PART_TOO_LARGE', async () => {
+    const parts: Part[] = [
+      { id: 'rot3', name: '旋转指定错', length: 1210, width: 2430, quantity: qty(1), grain: 'any', sheetId: 's2' },
+    ]
+    await expect(run(parts, settings(), [sheet, sheetSmall])).rejects.toMatchObject({ code: 'PART_TOO_LARGE' })
+  })
+
+  it('两方向都可行 → 保持原方向（不贪婪，rotated=false）', async () => {
+    // 2000×1000 旋转后 1003×2003 也放得进——但原方向可行，packer 不主动旋转
+    const parts: Part[] = [{ id: 'both', name: '两向可行', length: 2000, width: 1000, quantity: qty(1), grain: 'any' }]
+    const plan = await run(parts, settings())
+    const pl = plan.sheets[0].placements[0]
+    expect(pl.rotated).toBe(false)
+    expect(pl.len).toBe(2000)
+    expect(validatePlan(plan, parts, [sheet], settings()).ok).toBe(true)
+  })
+
+  it('旋转-only-fit 多实例：全部成功、确定性一致', async () => {
+    const parts: Part[] = [
+      { id: 'rot', name: '旋转件', length: 1210, width: 2430, quantity: qty(2), grain: 'any' },
+      { id: 'fill', name: '填料', length: 400, width: 300, quantity: qty(4), grain: 'any' },
+    ]
+    const p1 = await run(parts, settings({ seed: 42 }))
+    const p2 = await run(parts, settings({ seed: 42 }))
+    expect(JSON.stringify(p1)).toBe(JSON.stringify(p2))
+    const rots = p1.sheets.flatMap((s) => s.placements).filter((p) => p.partId === 'rot')
+    expect(rots.length).toBe(2)
+    for (const r of rots) {
+      expect(r.rotated).toBe(true)
+      expect(r.len).toBe(2430)
+    }
+    expect(validatePlan(p1, parts, [sheet], settings({ seed: 42 })).ok).toBe(true)
+  })
+
+  it('packSequence 级：入参实例对象不被修改（引用不变性）', () => {
+    const kerf = 3
+    const library: SheetLibraryEntry[] = [{ id: 's1', usableLen: 2440, usableWid: 1220 }]
+    const items: PackItem[] = [
+      { partId: 'rot', instance: 0, slotLen: 1213, slotWid: 2433, len: 1210, wid: 2430, rotated: false, rotatable: true },
+      { partId: 'fill', instance: 0, slotLen: 403, slotWid: 303, len: 400, wid: 300, rotated: false },
+    ]
+    const snapshot = JSON.stringify(items)
+    const result = packSequence(items, library, kerf)
+    // rot 旋转后开板 1；fill 403×303 塞不进旋转件右侧走廊（宽仅 10mm）→ 开板 2
+    expect(result.sheets.length).toBe(2)
+    // 入参未被原地修改；结果里的旋转实例是副本
+    expect(JSON.stringify(items)).toBe(snapshot)
+    expect(result.sheets[0].placements[0].item.rotated).toBe(true)
+    expect(items[0].rotated).toBe(false)
   })
 })
 

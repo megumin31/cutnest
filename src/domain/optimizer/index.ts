@@ -16,7 +16,7 @@ import {
 import { calcCost, edgeLengthOf } from '../pricing'
 import { iterationBudget, search, type SearchInstance } from './search'
 import { evaluatePlan } from './evaluate'
-import type { PackResult, SheetLibraryEntry } from './stripPacker'
+import { fitsAnyOrientation, type PackItem, type PackResult, type SheetLibraryEntry } from './stripPacker'
 import { validatePlan } from './validator'
 import { DEFAULT_QUALITY } from '../materials'
 
@@ -193,17 +193,23 @@ export function createOptimizer(): Optimizer {
       }
 
       const instances = expandInstances(validParts, settings)
-      // 预检：每个零件至少能被一种规格装下（指定 sheetId 的必须能被该规格装下）
-      for (const inst of instances) {
+      // 预检：每个零件至少有一个方向能被板材库中某规格装下（指定 sheetId 的必须能被该规格装下）。
+      // 按 part 粒度判定（天然拿到名称，报错可读）；可行性谓词与 packer 共用 fitsAnyOrientation，杜绝漂移。
+      for (const p of validParts) {
+        const probe: Pick<PackItem, 'slotLen' | 'slotWid' | 'rotatable'> = {
+          slotLen: p.length + settings.kerf,
+          slotWid: p.width + settings.kerf,
+          rotatable: p.grain === 'any',
+        }
         const fit = library.some((l) => {
-          if (inst.sheetId && l.id !== inst.sheetId) return false
-          return (
-            inst.slotLen <= l.usableLen + settings.kerf + EPSILON &&
-            inst.slotWid <= l.usableWid + settings.kerf + EPSILON
-          )
+          if (p.sheetId && l.id !== p.sheetId) return false
+          return fitsAnyOrientation(probe, l, settings.kerf)
         })
         if (!fit) {
-          throw new OptimizeError('PART_TOO_LARGE', `零件 ${inst.partId} 大于板材库中可用规格`)
+          throw new OptimizeError(
+            'PART_TOO_LARGE',
+            `零件「${p.name}」${p.length}×${p.width} 任何方向都放不进板材库中可用规格`,
+          )
         }
       }
 

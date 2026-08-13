@@ -48,6 +48,11 @@ describe('500 零件基准', () => {
     expect(plan.stats.sheetCount).toBeGreaterThanOrEqual(minSheets)
     expect(plan.stats.sheetCount).toBeLessThanOrEqual(Math.ceil(minSheets * 1.25))
 
+    // B1 修复红利锚点（2026-08-13）：packer 保证性 fallback 打开"旋转填侧洞"搜索空间后，
+    // 基准张数从 25 降到 24——字典序第①层"张数最少"是产品价值观，
+    // 若未来回归到 >25 说明搜索空间退化（本锚点同时作为新基线记录）
+    expect(plan.stats.sheetCount).toBeLessThanOrEqual(25)
+
     // 兜底：即使断言失败也输出基准数据供分析
     console.log(
       `[benchmark] ${elapsed.toFixed(0)}ms | ${plan.stats.sheetCount} 张 | 利用率 ${plan.stats.utilization.toFixed(2)}% | 可再利用块 ${plan.stats.reusableWasteBlocks} | 最大块 ${plan.stats.largestReusableWaste.toLocaleString()} mm²`,
