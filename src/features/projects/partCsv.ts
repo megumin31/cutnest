@@ -85,7 +85,7 @@ function parseLine(line: string): { cells: string[] } | null {
   cells.push(cur)
   // 纯文本模式：整行无逗号 → 按空白分隔（名称 长 宽 [数量]）
   if (cells.length === 1) {
-    const m = cells[0].match(/^(\S+)\s+([\d.]+)\s+([\d.]+)(?:\s+(\d+))?$/)
+    const m = cells[0].match(/^(\S+)\s+([\d.]+)\s+([\d.]+)(?:\s+([\d.]+))?$/)
     if (!m) return null
     return { cells: [m[1]!, m[2]!, m[3]!, m[4] ?? '1'] }
   }

@@ -125,4 +125,9 @@ describe('parsePartsCsv', () => {
     const rows = parsePartsCsv('A,100,50,2.9\nB,100,50,0.4\nC,100,50,0\n', () => undefined)
     expect(rows.map((r) => r.quantity)).toEqual([qty(2), qty(0), qty(0)])
   })
+
+  it('文本格式小数数量同样截断（批量粘贴入口共用同一语义）', () => {
+    const rows = parsePartsCsv('A 100 50 2.9\nB 100 50 0.4\nC 100 50 0\n', () => undefined)
+    expect(rows.map((r) => r.quantity)).toEqual([qty(2), qty(0), qty(0)])
+  })
 })

@@ -95,16 +95,19 @@ export function PartsWorkspace() {
       .filter(Boolean)
     const parsed: Part[] = []
     for (const line of lines) {
-      const m = line.match(/^(\S+)\s+([\d.]+)\s+([\d.]+)(?:\s+(\d+))?$/)
+      const m = line.match(/^(\S+)\s+([\d.]+)\s+([\d.]+)(?:\s+([\d.]+))?$/)
       if (!m) continue
       const [, name, length, width, qtyText] = m
       if (!name) continue // 正则组 1 必匹配，此处仅为 TS 收窄
+      const l = Math.round(Number(length))
+      const w = Math.round(Number(width))
+      if (!Number.isFinite(l) || !Number.isFinite(w) || l < 1 || w < 1) continue
       parsed.push({
         id: `part-${Date.now()}-${partSeq++}`,
         name,
-        length: Math.max(1, Math.round(Number(length))),
-        width: Math.max(1, Math.round(Number(width))),
-        quantity: qtyText ? qty(parseInt(qtyText, 10)) : qty(1),
+        length: l,
+        width: w,
+        quantity: qtyText ? qty(Number(qtyText)) : qty(1),
       })
     }
     if (parsed.length === 0) {
