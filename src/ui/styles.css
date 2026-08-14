@@ -431,16 +431,6 @@ body {
   }
 }
 
-/* 零件表：数量列数字居中（antd InputNumber 默认左对齐） */
-.num-center .ant-input-number-input {
-  text-align: center;
-}
-
-/* 零件表：数字列右对齐（Excel 式，UI-DESIGN.md §6.2） */
-.num-right .ant-input-number-input {
-  text-align: right;
-}
-
 /* 零件表：名称输入框靠左（去掉 antd 输入框默认左内边距，文字贴近单元格左缘） */
 .name-input {
   padding-left: 0;

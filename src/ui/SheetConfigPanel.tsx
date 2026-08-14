@@ -103,7 +103,6 @@ export function SheetConfigPanel() {
       title: '☑',
       key: 'checked',
       width: 40,
-      align: 'center',
       render: (_v, s) => (
         <Checkbox
           checked={sheets.some((x) => x.id === s.id)}
@@ -124,7 +123,6 @@ export function SheetConfigPanel() {
       dataIndex: 'length',
       key: 'size',
       width: 130,
-      align: 'right',
       render: (_v, s) => (
         <span style={{ fontVariantNumeric: 'tabular-nums' }}>
           {s.length}×{s.width}
@@ -135,14 +133,12 @@ export function SheetConfigPanel() {
       title: t('leftPanel.unitPrice'),
       key: 'price',
       width: 90,
-      align: 'right',
       render: (_v, s) => (pricing.enabled ? <span>¥{s.price}</span> : <span style={{ color: 'var(--text-disabled)' }}>—</span>),
     },
     {
       title: '',
       key: 'edit',
       width: 40,
-      align: 'center',
       render: (_v, s) => (
         <Tooltip title={t('leftPanel.editSheet')}>
           <Button

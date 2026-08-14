@@ -155,8 +155,8 @@ export function PartsWorkspace() {
   const allRotatable = parts.length > 0 && anyCount === parts.length
   const mixedRotation = anyCount > 0 && anyCount < parts.length
 
-  /** 数字列表头：右对齐（与单元格数字对齐，Excel 式） */
-  const numTitle = (label: string) => <span style={{ display: 'block', textAlign: 'right' }}>{label}</span>
+  /** 数字列表头：左对齐（与单元格内容对齐） */
+  const numTitle = (label: string) => <span style={{ display: 'block', textAlign: 'left' }}>{label}</span>
 
   /** 只读文本单元格 */
   const cellText = (v: React.ReactNode) => <span className="cell-text">{v}</span>
@@ -166,7 +166,6 @@ export function PartsWorkspace() {
       title: '#',
       key: 'row',
       width: 24,
-      align: 'center',
       onCell: () => ({ className: 'row-num-cell' }),
       render: (_v, _r, index) => (
         <span style={{ color: 'var(--text-disabled)', fontSize: 11, fontVariantNumeric: 'tabular-nums' }}>
@@ -198,7 +197,6 @@ export function PartsWorkspace() {
       dataIndex: 'length',
       key: 'length',
       width: 60,
-      align: 'right',
       render: (v: number, r) =>
         readonly ? (
           cellText(v > 0 ? v : '—')
@@ -208,7 +206,6 @@ export function PartsWorkspace() {
             variant="borderless"
             min={0}
             controls={false}
-            className="num-right"
             value={v === 0 ? undefined : v}
             placeholder="0"
             style={{ width: '100%' }}
@@ -221,7 +218,6 @@ export function PartsWorkspace() {
       dataIndex: 'width',
       key: 'width',
       width: 60,
-      align: 'right',
       render: (v: number, r) =>
         readonly ? (
           cellText(v > 0 ? v : '—')
@@ -231,7 +227,6 @@ export function PartsWorkspace() {
             variant="borderless"
             min={0}
             controls={false}
-            className="num-right"
             value={v === 0 ? undefined : v}
             placeholder="0"
             style={{ width: '100%' }}
@@ -240,11 +235,10 @@ export function PartsWorkspace() {
         ),
     },
     {
-      title: <span style={{ display: 'block', textAlign: 'center' }}>{t('leftPanel.quantity')}</span>,
+      title: t('leftPanel.quantity'),
       dataIndex: 'quantity',
       key: 'quantity',
       width: 48,
-      align: 'center',
       render: (v: number, r) =>
         readonly ? (
           cellText(v)
@@ -255,7 +249,6 @@ export function PartsWorkspace() {
             min={0}
             step={1}
             controls={false}
-            className="num-center"
             value={v}
             style={{ width: '100%' }}
             onChange={(x) => patch(r.id, { quantity: qty(x ?? 0) })}
@@ -264,7 +257,7 @@ export function PartsWorkspace() {
     },
     {
       title: (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           {t('leftPanel.rotation')}
           {!readonly && (
             <Checkbox
@@ -279,7 +272,6 @@ export function PartsWorkspace() {
       dataIndex: 'grain',
       key: 'grain',
       width: 44,
-      align: 'center',
       render: (v: 'alongLength' | 'any' | undefined, r) =>
         readonly ? (
           cellText(v === 'any' ? '✓' : '')
