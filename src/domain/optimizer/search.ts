@@ -53,15 +53,20 @@ export function iterationBudget(quality: Quality, instanceCount: number): number
   return Math.min(6000, Math.max(200, Math.round(perPart * instanceCount)))
 }
 
-/** 多个初始序候选（长度降序是主序，见架构文档 §6.2 stripPacker） */
+/** 多个初始序候选（长度降序是主序；同类分组序保证搜索起点包含聚排方案，见架构文档 §6.2 stripPacker） */
 function heuristicOrders(instances: SearchInstance[]): SearchInstance[][] {
   const byLen = (a: PackItem, b: PackItem) => b.slotLen - a.slotLen || b.slotWid - a.slotWid
   const byArea = (a: PackItem, b: PackItem) => b.slotLen * b.slotWid - a.slotLen * a.slotWid
   const byWid = (a: PackItem, b: PackItem) => b.slotWid - a.slotWid || b.slotLen - a.slotLen
+  // 同类分组：同 partId 连续（组内长度降序）——"同类聚排"的直接构造，
+  // 即使 packer 多板最低位置拆散主序，也保证初始解里存在聚排候选
+  const byGroup = (a: PackItem, b: PackItem) =>
+    a.partId < b.partId ? -1 : a.partId > b.partId ? 1 : b.slotLen - a.slotLen || b.slotWid - a.slotWid
   return [
     [...instances].sort(byLen),
     [...instances].sort(byArea),
     [...instances].sort(byWid),
+    [...instances].sort(byGroup),
   ]
 }
 

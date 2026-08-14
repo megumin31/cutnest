@@ -413,6 +413,7 @@ describe('评价函数字典序（已知最优解小用例）', () => {
         { x: 0, y: 303, w: 806 },
         { x: 806, y: 0, w: 1600 },
       ],
+      holes: [],
       slotLen: 2443,
       slotWid: 1223,
     })
@@ -425,6 +426,7 @@ describe('评价函数字典序（已知最优解小用例）', () => {
           { x: 0, y: 303, w: 403 },
           { x: 403, y: 0, w: 2000 },
         ],
+        holes: [],
         slotLen: 2443,
         slotWid: 1223,
       },
@@ -433,6 +435,7 @@ describe('评价函数字典序（已知最优解小用例）', () => {
         sheetSpecId: 's1',
         placements: [{ item: mkItem('a'), x: 0, y: 0 }],
         skyline: [{ x: 0, y: 1123, w: 2400 }],
+        holes: [],
         slotLen: 2443,
         slotWid: 1223,
       },
@@ -443,5 +446,183 @@ describe('评价函数字典序（已知最优解小用例）', () => {
     expect(scoreA.reusableWasteBlocks).toBeGreaterThan(scoreB.reusableWasteBlocks)
     // 同类聚排层应盖过块数层
     expect(compareScores(scoreA, scoreB)).toBeGreaterThan(0)
+  })
+})
+
+/**
+ * 回归：交替长短件（2750×1220，用户案例）——
+ * ① 同类聚排（contact 修正：隔件不算共享边，聚排层恢复区分度）
+ * ② 无白色色块（悬空洞记录：洞是真实余料，必须被余料条带覆盖）
+ */
+describe('回归：交替长短件（同类聚排 + 无白块）', () => {
+  /** 模拟渲染：是否存在 ≥10×10mm 的实心纯白矩形（kerf 3mm 细缝不算色块） */
+  function hasWhiteBlock(
+    placements: { x: number; y: number; len: number; wid: number }[],
+    usableLen: number,
+    usableWid: number,
+    kerf: number,
+  ): boolean {
+    const W = usableLen
+    const H = usableWid
+    const grid = new Uint8Array(W * H)
+    const paint = (x: number, y: number, w: number, h: number) => {
+      const x0 = Math.max(0, Math.floor(x)), x1 = Math.min(W, Math.ceil(x + w))
+      const y0 = Math.max(0, Math.floor(y)), y1 = Math.min(H, Math.ceil(y + h))
+      for (let yy = y0; yy < y1; yy++) for (let xx = x0; xx < x1; xx++) grid[yy * W + xx] = 1
+    }
+    for (const p of placements) paint(p.x, p.y, p.len, p.wid)
+    const regs = wasteRegionsOfLayout(placements, usableLen, usableWid, kerf)
+    for (const r of regs) for (const st of r.strips) paint(st.x, st.y, st.w, st.h)
+    const rowSegs: [number, number][][] = []
+    for (let yy = 0; yy < H; yy++) {
+      const segs: [number, number][] = []
+      let xx = 0
+      while (xx < W) {
+        if (grid[yy * W + xx] === 0) {
+          const x0 = xx
+          while (xx < W && grid[yy * W + xx] === 0) xx++
+          segs.push([x0, xx - 1])
+        } else xx++
+      }
+      rowSegs.push(segs)
+    }
+    for (let yy = 0; yy + 9 < H; yy++) {
+      for (const [x0, x1] of rowSegs[yy]) {
+        if (x1 - x0 + 1 < 10) continue
+        let ok = true
+        for (let dy = 1; dy < 10; dy++) {
+          const hit = rowSegs[yy + dy].some(([a, b]) => Math.min(b, x1) - Math.max(a, x0) + 1 >= 10)
+          if (!hit) {
+            ok = false
+            break
+          }
+        }
+        if (ok) return true
+      }
+    }
+    return false
+  }
+
+  const bigSheet: SheetSpec = { id: 's-big', name: '2750×1220', length: 2750, width: 1220, price: 0 }
+  const userParts = (): Part[] => [
+    { id: 'p1', name: 'A', length: 2458, width: 80, quantity: qty(5) },
+    { id: 'p2', name: 'B', length: 2458, width: 585, quantity: qty(1) },
+    { id: 'p3', name: 'C', length: 2700, width: 80, quantity: qty(3) },
+  ]
+
+  it('同类件整排聚块（不交替插排）', async () => {
+    const plan = await createOptimizer().optimize({
+      parts: userParts(),
+      sheets: [bigSheet],
+      settings: createDefaultSettings({ seed: 1 }),
+    })
+    // 585 宽 + 8 条 80 高 = 1252 > 1220 → 必然 2 张板（张数层不变）
+    expect(plan.stats.sheetCount).toBe(2)
+    // 8 条 80mm 条应同类连排（旧实现交替插排：2700 条夹在 2458 条之间）
+    const seq = plan.sheets[0].placements.map((p) => p.partId)
+    const runs = seq.reduce<{ id: string; n: number }[]>((acc, id) => {
+      const last = acc[acc.length - 1]
+      if (last && last.id === id) last.n++
+      else acc.push({ id, n: 1 })
+      return acc
+    }, [])
+    expect(runs).toContainEqual({ id: 'p3', n: 3 })
+    expect(runs).toContainEqual({ id: 'p1', n: 5 })
+  })
+
+  it('无白色色块（洞区域被余料条带覆盖）', async () => {
+    const plan = await createOptimizer().optimize({
+      parts: userParts(),
+      sheets: [bigSheet],
+      settings: createDefaultSettings({ seed: 1 }),
+    })
+    for (const s of plan.sheets) {
+      const blocked = hasWhiteBlock(
+        s.placements.map((p) => ({ x: p.x, y: p.y, len: p.len, wid: p.wid })),
+        2750,
+        1220,
+        plan.settings.kerf,
+      )
+      expect(blocked).toBe(false)
+    }
+  })
+
+  it('packer 记录悬空洞：交替插排布局的洞可见且被余料覆盖', () => {
+    const library: SheetLibraryEntry[] = [{ id: 's-big', usableLen: 2750, usableWid: 1220 }]
+    const mk = (partId: string, len: number, i: number): PackItem => ({
+      partId,
+      instance: i,
+      slotLen: len + 3,
+      slotWid: 83,
+      len,
+      wid: 80,
+      rotated: false,
+    })
+    // 构造旧行为交替插排：2700 长件落在 2458 短件旁的低洼 skyline 上 → 悬空洞
+    const result = packSequence(
+      [
+        mk('p3', 2700, 0),
+        mk('p1', 2458, 0),
+        mk('p3', 2700, 1),
+        mk('p1', 2458, 1),
+        mk('p1', 2458, 2),
+        mk('p3', 2700, 2),
+        mk('p1', 2458, 3),
+        mk('p1', 2458, 4),
+      ],
+      library,
+      3,
+    )
+    const sheet = result.sheets[0]
+    expect(sheet.holes.length).toBeGreaterThan(0)
+    // 每个洞都被余料条带覆盖（可视化不露白）
+    const regs = wasteRegionsOfLayout(
+      sheet.placements.map((p) => ({ x: p.x, y: p.y, len: p.item.len, wid: p.item.wid })),
+      2750,
+      1220,
+      3,
+    )
+    for (const hole of sheet.holes) {
+      // 洞中心点（真实空间）
+      const cx = hole.x - 3 + hole.w / 2
+      const cy = hole.y - 3 + hole.h / 2
+      const covered = regs.some((r) => r.strips.some((st) => cx >= st.x && cx <= st.x + st.w && cy >= st.y && cy <= st.y + st.h))
+      expect(covered).toBe(true)
+    }
+  })
+
+  it('contact 紧贴判定：隔着其他零件的同类件不计共享边', () => {
+    const mkItem = (partId: string): PackItem => ({ partId, instance: 0, slotLen: 2703, slotWid: 83, len: 2700, wid: 80, rotated: false })
+    // a1 在 y=0，a2 在 y=166，中间隔 b（y=83）——a1/a2 无共享边
+    const sheetA: PackedSheet = {
+      sheetSpecId: 's1',
+      placements: [
+        { item: mkItem('a'), x: 0, y: 0 },
+        { item: mkItem('b'), x: 0, y: 83 },
+        { item: mkItem('a'), x: 0, y: 166 },
+      ],
+      skyline: [{ x: 0, y: 249, w: 2703 }],
+      holes: [],
+      slotLen: 2753,
+      slotWid: 1223,
+    }
+    // 同类相邻（无隔件）：a1/a2 上下紧贴
+    const sheetB: PackedSheet = {
+      sheetSpecId: 's1',
+      placements: [
+        { item: mkItem('a'), x: 0, y: 0 },
+        { item: mkItem('a'), x: 0, y: 83 },
+        { item: mkItem('a'), x: 0, y: 166 },
+      ],
+      skyline: [{ x: 0, y: 249, w: 2703 }],
+      holes: [],
+      slotLen: 2753,
+      slotWid: 1223,
+    }
+    const scoreA = evaluatePlan({ sheets: [sheetA] }, 200)
+    const scoreB = evaluatePlan({ sheets: [sheetB] }, 200)
+    // A 的同类件被 b 隔开 → 共享边 0；B 相邻 → 共享边 2×2700
+    expect(scoreA.compactness + 0).toBe(0) // 归一化 -0
+    expect(scoreB.compactness).toBe(-5400)
   })
 })

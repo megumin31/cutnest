@@ -45,12 +45,28 @@ export interface SkylineSeg {
   w: number
 }
 
+/**
+ * 悬空洞（槽空间坐标）：skyline 悬空放置时，零件底部与低洼段之间留下的真实空洞。
+ * 底 y = 低洼段 skyline 高度，顶 = 放置底 fit.y（上方被放置的零件槽封住）。
+ * 洞一旦产生就是永久的（skyline 提升后后续零件看不到洞，不会进入）——
+ * 它是真实存在的废料区域，评价与可视化必须诚实表达（否则 skyline 上方条带
+ * 把洞吞掉 → 切割图出现白色色块 + 余料集中度虚高）。
+ */
+export interface HoleRect {
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
 export interface PackedSheet {
   /** 该板使用的板材规格 id */
   sheetSpecId: string
   /** 槽空间坐标的放置（x/y 即零件左下角真实坐标） */
   placements: { item: PackItem; x: number; y: number }[]
   skyline: SkylineSeg[]
+  /** 悬空洞（槽空间坐标，见 HoleRect 注释） */
+  holes: HoleRect[]
   /** 槽空间长（X 方向，含 kerf） */
   slotLen: number
   /** 槽空间宽（Y 方向，含 kerf） */
@@ -108,8 +124,23 @@ function bestFit(
   return bestStart === -1 ? null : { sheetIdx: 0, y: bestY, x: bestX, start: bestStart, end: bestEnd }
 }
 
-/** 在 skyline 上落下零件，返回新 skyline */
-function placeOnSkyline(segs: SkylineSeg[], fit: Fit, w: number, h: number): SkylineSeg[] {
+/**
+ * 在 skyline 上落下零件，返回新 skyline + 本次放置产生的悬空洞。
+ * 洞 = 覆盖范围内低于放置底 fit.y 的 skyline 段的上方区域（真实空间里没有零件占据，
+ * 但 skyline 提升后模型不再表达它——必须显式记录，否则评价/可视化丢失这片真实余料）。
+ */
+function placeOnSkyline(segs: SkylineSeg[], fit: Fit, w: number, h: number): { skyline: SkylineSeg[]; holes: HoleRect[] } {
+  const holes: HoleRect[] = []
+  for (let k = fit.start; k <= fit.end; k++) {
+    const seg = segs[k]
+    if (seg.y < fit.y - EPSILON) {
+      const hx = Math.max(seg.x, fit.x)
+      const hx2 = Math.min(seg.x + seg.w, fit.x + w)
+      if (hx2 - hx > EPSILON) {
+        holes.push({ x: hx, y: seg.y, w: hx2 - hx, h: fit.y - seg.y })
+      }
+    }
+  }
   const newSegs: SkylineSeg[] = []
   for (let k = 0; k < fit.start; k++) newSegs.push(segs[k])
   const leftCover = fit.x - segs[fit.start].x
@@ -133,7 +164,7 @@ function placeOnSkyline(segs: SkylineSeg[], fit: Fit, w: number, h: number): Sky
       merged.push({ ...s })
     }
   }
-  return merged
+  return { skyline: merged, holes }
 }
 
 /**
@@ -207,6 +238,7 @@ export function packSequence(
       sheetSpecId: spec.id,
       placements: [],
       skyline: [{ x: 0, y: 0, w: spec.usableLen + kerf }],
+      holes: [],
       slotLen: spec.usableLen + kerf,
       slotWid: spec.usableWid + kerf,
     })
@@ -253,7 +285,9 @@ export function packSequence(
 
     const sheet = sheets[best.sheetIdx]
     sheet.placements.push({ item, x: best.x, y: best.y })
-    sheet.skyline = placeOnSkyline(sheet.skyline, best, item.slotLen, item.slotWid)
+    const placed = placeOnSkyline(sheet.skyline, best, item.slotLen, item.slotWid)
+    sheet.skyline = placed.skyline
+    sheet.holes.push(...placed.holes)
     // 精确深度：新 skyline 的最低 y（用于后续快速过滤）
     let minY = sheet.skyline[0]?.y ?? 0
     for (let k = 1; k < sheet.skyline.length; k++) {
