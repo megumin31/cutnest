@@ -178,7 +178,7 @@ export function PartsWorkspace() {
       title: t('leftPanel.name'),
       dataIndex: 'name',
       key: 'name',
-      width: 112,
+      width: 120,
       render: (v: string, r) =>
         readonly ? (
           cellText(v || '—')
@@ -197,7 +197,7 @@ export function PartsWorkspace() {
       title: numTitle(t('leftPanel.length')),
       dataIndex: 'length',
       key: 'length',
-      width: 56,
+      width: 60,
       align: 'right',
       render: (v: number, r) =>
         readonly ? (
@@ -220,7 +220,7 @@ export function PartsWorkspace() {
       title: numTitle(t('leftPanel.width')),
       dataIndex: 'width',
       key: 'width',
-      width: 56,
+      width: 60,
       align: 'right',
       render: (v: number, r) =>
         readonly ? (
@@ -243,7 +243,7 @@ export function PartsWorkspace() {
       title: <span style={{ display: 'block', textAlign: 'center' }}>{t('leftPanel.quantity')}</span>,
       dataIndex: 'quantity',
       key: 'quantity',
-      width: 44,
+      width: 48,
       align: 'center',
       render: (v: number, r) =>
         readonly ? (
@@ -278,7 +278,7 @@ export function PartsWorkspace() {
       ),
       dataIndex: 'grain',
       key: 'grain',
-      width: 40,
+      width: 44,
       align: 'center',
       render: (v: 'alongLength' | 'any' | undefined, r) =>
         readonly ? (
@@ -297,7 +297,7 @@ export function PartsWorkspace() {
       title: t('leftPanel.partSheet'),
       dataIndex: 'sheetId',
       key: 'sheetId',
-      width: 72,
+      width: 76,
       render: (v: string | undefined, r) =>
         readonly ? (
           cellText(sheetNameOf(v))
@@ -317,7 +317,7 @@ export function PartsWorkspace() {
       title: t('leftPanel.edgeBand'),
       dataIndex: 'edgeBand',
       key: 'edgeBand',
-      width: 60,
+      width: 64,
       render: (v: ('L' | 'R' | 'T' | 'B')[] | undefined, r) =>
         readonly ? (
           cellText((v ?? []).join('/') || '—')
@@ -401,8 +401,6 @@ export function PartsWorkspace() {
           dataSource={parts}
           pagination={false}
           bordered
-          sticky
-          scroll={{ y: 'calc(100vh - 470px)' }} // 左栏固定骨架高度之和（顶栏52+状态栏30+左栏padding 24+标题行~30+板材库区~230+工艺参数区~110+间距）
           locale={{ emptyText: t('leftPanel.partsEmpty') }}
         />
       </div>

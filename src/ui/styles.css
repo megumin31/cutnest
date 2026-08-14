@@ -16,6 +16,13 @@ body,
   padding: 0;
 }
 
+/* antd App / app-root 须接力 height:100%（否则 .app-shell 高度回退为内容高度，
+   计算后中央结果撑高页面 → 整页滚动 → 左栏底部板材库/工艺参数滚出视口） */
+.ant-app,
+.app-root {
+  height: 100%;
+}
+
 body {
   font-family: -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', sans-serif;
   background: var(--bg);
@@ -50,7 +57,7 @@ body {
 }
 
 .app-left {
-  width: 560px;
+  width: 640px;
   flex-shrink: 0;
   border-right: 1px solid var(--border);
   background: var(--surface);
@@ -129,15 +136,18 @@ body {
 .parts-table-wrap {
   flex: 1;
   min-height: 0;
-  overflow: hidden;
+  overflow-y: auto; /* 表格整体在容器内滚动；表头 CSS sticky 钉住（不用 antd scroll.y，避免固定高度挤压底部面板） */
 }
 
 /* Excel 式网格表格（零件表/板材库统一形态）：灰底冻结表头 + 紧凑行 + 数字等宽 */
 .parts-table .ant-table-thead > tr > th {
   background: var(--table-header-bg);
   font-size: 11px;
-  padding-top: 3px;
-  padding-bottom: 3px;
+  padding-top: 2px;
+  padding-bottom: 2px;
+  position: sticky;
+  top: 0;
+  z-index: 2;
 }
 
 .parts-table .ant-table-tbody > tr > td {
@@ -150,6 +160,12 @@ body {
   background: var(--table-row-num-bg);
   color: var(--text-disabled);
   font-size: 11px;
+}
+
+/* 板材库表格：自然高度（规格少不滚动），超过 8 行时容器滚动兜底 */
+.sheets-panel .ant-table-wrapper {
+  max-height: 208px;
+  overflow-y: auto;
 }
 
 /* 板材库表格（左栏底部固定区） */

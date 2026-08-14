@@ -102,7 +102,7 @@ export function SheetConfigPanel() {
     {
       title: '☑',
       key: 'checked',
-      width: 36,
+      width: 40,
       align: 'center',
       render: (_v, s) => (
         <Checkbox
@@ -116,14 +116,14 @@ export function SheetConfigPanel() {
       title: t('leftPanel.name'),
       dataIndex: 'name',
       key: 'name',
-      width: 120,
+      width: 150,
       render: (v: string) => <span style={{ fontWeight: 500 }}>{v}</span>,
     },
     {
       title: t('leftPanel.sheetSize'),
       dataIndex: 'length',
       key: 'size',
-      width: 110,
+      width: 130,
       align: 'right',
       render: (_v, s) => (
         <span style={{ fontVariantNumeric: 'tabular-nums' }}>
@@ -134,7 +134,7 @@ export function SheetConfigPanel() {
     {
       title: t('leftPanel.unitPrice'),
       key: 'price',
-      width: 64,
+      width: 90,
       align: 'right',
       render: (_v, s) => (pricing.enabled ? <span>¥{s.price}</span> : <span style={{ color: 'var(--text-disabled)' }}>—</span>),
     },
@@ -234,7 +234,6 @@ export function SheetConfigPanel() {
           dataSource={sheetOptions}
           pagination={false}
           bordered
-          scroll={{ y: 150 }}
         />
       </div>
 

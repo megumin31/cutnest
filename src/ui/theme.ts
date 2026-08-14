@@ -77,8 +77,8 @@ export function buildTheme(mode: ThemeMode): ThemeConfig {
         headerColor: p.textSecondary,
         headerSplitColor: 'transparent',
         rowHoverBg: mode === 'dark' ? '#1D222B' : '#F3F3F5',
-        // Excel 式紧凑行（v1.2 方向 D）：单元格内边距压至 ~26px 行高
-        cellPaddingBlock: 4,
+        // Excel 式紧凑行（v1.2 方向 D）：单元格内边距压至 ~24px 行高
+        cellPaddingBlock: 3,
         cellPaddingInline: 8,
       },
       Layout: { siderBg: p.surface, headerBg: p.surface },
