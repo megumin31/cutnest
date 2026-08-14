@@ -290,8 +290,8 @@ function drawText(ctx: Layout, text: string, x: number, y: number, opts: DrawTex
 }
 
 /**
- * 零件标注（白字 + 深色 halo）：halo 偏移随字号缩放（近似网页 paint-order stroke）。
- * 复用 drawText 统一出口：CJK/泰文三写模拟加粗、混排 run 分段自动生效。
+ * 零件标注（深色字 + 白色 halo）：halo 偏移随字号缩放（近似网页 paint-order stroke）。
+ * 淡彩填充上深字凸显；复用 drawText 统一出口：CJK/泰文三写模拟加粗、混排 run 分段自动生效。
  */
 function drawLabelText(
   ctx: Layout,
@@ -311,9 +311,9 @@ function drawLabelText(
     [halo, halo],
   ]
   for (const [dx, dy] of offsets) {
-    drawText(ctx, text, x + dx, y + dy, { color: [24, 24, 27], align })
+    drawText(ctx, text, x + dx, y + dy, { color: [255, 255, 255], align })
   }
-  drawText(ctx, text, x, y, { bold: true, color: [255, 255, 255], align })
+  drawText(ctx, text, x, y, { bold: true, color: [40, 40, 46], align })
 }
 
 /** 按字符断行（CJK 无空格也安全），每行不超过 maxWidth；内部设置 9pt normal */
@@ -488,7 +488,7 @@ function drawSheetPage(
   doc.setLineWidth(0.4)
   doc.rect(ox, oy, dw, dh)
 
-  // 余料区：真实条带半透明灰（与网页 WASTE_FILL rgba(127,127,127,0.35) 一致）；
+  // 余料区：真实条带半透明浅灰（与网页 WASTE_FILL rgba(127,127,127,0.15) 一致）；
   // 槽空间最右/顶部含 kerf 走廊，超出可用区部分裁剪
   const wasteRegions = wasteRegionsOfLayout(
     scene.parts.map((p) => ({ x: p.x, y: p.y, len: p.len, wid: p.wid })),
@@ -504,14 +504,14 @@ function drawSheetPage(
       const rh = Math.max(0, Math.min(dh - ry, s.h * scale))
       if (rw < 0.05 || rh < 0.05) continue
       doc.saveGraphicsState()
-      doc.setGState(new GState({ opacity: 0.35 }))
+      doc.setGState(new GState({ opacity: 0.15 }))
       doc.setFillColor(127, 127, 127)
       doc.rect(ox + rx, oy + ry, rw, rh, 'F')
       doc.restoreGraphicsState()
     }
   }
 
-  // 零件（彩色填充 + 圆角 + 深灰描边，与网页切割图一致；无白色避免与板材底色混淆）
+  // 零件（彩色填充 + 圆角 + 黑色描边，与网页切割图一致；无白色避免与板材底色混淆）
   const colorIdx = sheetPartColors(scene.parts.map((p) => p.partId))
   for (let i = 0; i < scene.parts.length; i++) {
     const p = scene.parts[i]
@@ -522,7 +522,7 @@ function drawSheetPage(
     if (pw < 1 || ph < 1) continue
     const hex = PART_PALETTE[colorIdx[i] % PART_PALETTE.length]
     doc.setFillColor(parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16))
-    doc.setDrawColor(56, 56, 60)
+    doc.setDrawColor(17, 17, 17)
     doc.setLineWidth(0.2)
     // 圆角与网页一致：rx = min(2, len/3, wid/3)（板 mm）按缩放换算
     const rx = Math.min(2, p.len / 3, p.wid / 3) * scale
@@ -550,16 +550,12 @@ function drawSheetPage(
       }
     }
 
-    // 标注：阈值与网页一致（真实面积 > 40000 mm²）；字号加大、白字加 halo 描边 + 模拟加粗
+    // 标注：阈值与网页一致（真实面积 > 40000 mm²）；中心只标零件名称（字号加大）、深色字加白色 halo 模拟
     if (p.len * p.wid > 40_000) {
       const centerX = px + pw / 2
       const centerY = py + ph / 2
-      const namePt = Math.min(8.5, pw / 7, ph / 3)
-      const dimPt = Math.max(4.5, Math.min(6.5, pw / 8.5, ph / 3.5))
-      const nameY = centerY - namePt * 0.35
-      const dimY = centerY + namePt * 0.5 + dimPt * 0.35
-      drawLabelText(ctx, p.name, centerX, nameY, namePt, 'center')
-      drawLabelText(ctx, `${fmt(labels, p.len)}×${fmt(labels, p.wid)}`, centerX, dimY, dimPt, 'center')
+      const namePt = Math.min(11, pw / 6, ph / 2.4)
+      drawLabelText(ctx, p.name, centerX, centerY + namePt * 0.35, namePt, 'center')
     }
   }
 
