@@ -22,8 +22,6 @@ interface PlanState {
   selectedPartKey: string | null
   /** 悬停零件（联动高亮） */
   hoverPartKey: string | null
-  /** 编辑态/结果态切换（结果态可一键回到零件工作区） */
-  editMode: boolean
   task: OptimizeTask | null
   /** 任务序号：run/cancel/reset/openHistory 经 invalidateTask 自增；回调按序号丢弃过期任务（防旧任务 CANCELLED/result 覆盖新状态） */
   runSeq: number
@@ -55,7 +53,6 @@ interface PlanState {
   setHoverPart: (key: string | null) => void
   /** 选中零件：联动右栏翻页到所在板；null（清空）不跳页 */
   selectPart: (key: string | null) => void
-  setEditMode: (v: boolean) => void
   /** 载入历史方案视图（plan 来自 PlanRecord，含零件快照） */
   openHistory: (record: PlanRecord) => void
   reset: () => void
@@ -75,7 +72,6 @@ export const usePlanStore = create<PlanState>((set, get) => ({
   sheetIndex: 0,
   selectedPartKey: null,
   hoverPartKey: null,
-  editMode: false,
   task: null,
   runSeq: 0,
   planPartNames: null,
@@ -98,7 +94,6 @@ export const usePlanStore = create<PlanState>((set, get) => ({
       sheetIndex: 0,
       selectedPartKey: null,
       hoverPartKey: null,
-      editMode: false,
       runSeq: seq,
       planPartNames: Object.fromEntries(project.parts.map((p) => [p.id, p.name])),
       planParts: null,
@@ -157,7 +152,6 @@ export const usePlanStore = create<PlanState>((set, get) => ({
       if (idx !== undefined && idx >= 0) set({ sheetIndex: idx })
     }
   },
-  setEditMode: (editMode) => set({ editMode }),
 
   openHistory: (record) => {
     get().invalidateTask()
@@ -169,7 +163,6 @@ export const usePlanStore = create<PlanState>((set, get) => ({
       sheetIndex: 0,
       selectedPartKey: null,
       hoverPartKey: null,
-      editMode: false,
       planPartNames: record.partNames ?? null,
       planParts: record.parts ?? null,
       planIsHistory: true,
@@ -188,7 +181,6 @@ export const usePlanStore = create<PlanState>((set, get) => ({
       sheetIndex: 0,
       selectedPartKey: null,
       hoverPartKey: null,
-      editMode: false,
       planPartNames: null,
       planParts: null,
       planIsHistory: false,

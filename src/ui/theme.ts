@@ -73,10 +73,13 @@ export function buildTheme(mode: ThemeMode): ThemeConfig {
       Card: { borderRadiusLG: 12 },
       Modal: { borderRadiusLG: 12 },
       Table: {
-        headerBg: 'transparent',
+        headerBg: mode === 'dark' ? '#1D222B' : '#F3F3F4',
         headerColor: p.textSecondary,
         headerSplitColor: 'transparent',
         rowHoverBg: mode === 'dark' ? '#1D222B' : '#F3F3F5',
+        // Excel 式紧凑行（v1.2 方向 D）：单元格内边距压至 ~26px 行高
+        cellPaddingBlock: 4,
+        cellPaddingInline: 8,
       },
       Layout: { siderBg: p.surface, headerBg: p.surface },
       Input: { activeBorderColor: p.accent, hoverBorderColor: p.border },
@@ -96,6 +99,9 @@ export function themeCssVars(mode: ThemeMode): Record<string, string> {
     '--text-secondary': p.textSecondary,
     '--text-disabled': p.textDisabled,
     '--accent': p.accent,
+    '--warning': p.warning,
+    '--table-header-bg': mode === 'dark' ? '#1D222B' : '#F3F3F4',
+    '--table-row-num-bg': mode === 'dark' ? '#171C24' : '#FAFAFB',
     '--waste': 'rgba(127,127,127,0.35)',
   }
 }

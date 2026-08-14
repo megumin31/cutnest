@@ -50,12 +50,15 @@ body {
 }
 
 .app-left {
-  width: 320px;
+  width: 560px;
   flex-shrink: 0;
   border-right: 1px solid var(--border);
   background: var(--surface);
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
   padding: 12px;
+  overflow: hidden; /* 内部面板各自滚动 */
 }
 
 .app-center {
@@ -94,6 +97,118 @@ body {
   background: var(--surface);
   margin-bottom: 12px;
   overflow: hidden;
+}
+
+/* ===== 左栏面板（v1.2 方向 D，UI-DESIGN.md §6.2） ===== */
+.parts-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.parts-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  margin-bottom: 8px;
+}
+
+.panel-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.panel-sub {
+  font-size: 11px;
+  color: var(--text-disabled);
+  font-variant-numeric: tabular-nums;
+}
+
+.parts-table-wrap {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Excel 式网格表格（零件表/板材库统一形态）：灰底冻结表头 + 紧凑行 + 数字等宽 */
+.parts-table .ant-table-thead > tr > th {
+  background: var(--table-header-bg);
+  font-size: 11px;
+  padding-top: 3px;
+  padding-bottom: 3px;
+}
+
+.parts-table .ant-table-tbody > tr > td {
+  padding-top: 2px;
+  padding-bottom: 2px;
+  font-variant-numeric: tabular-nums;
+}
+
+.parts-table .ant-table-tbody > tr > td.row-num-cell {
+  background: var(--table-row-num-bg);
+  color: var(--text-disabled);
+  font-size: 11px;
+}
+
+/* 板材库表格（左栏底部固定区） */
+.sheets-panel {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sheets-section {
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+
+.sheets-section .parts-header {
+  margin-bottom: 6px;
+}
+
+/* 工艺参数：双列紧凑表单（不表格化） */
+.params-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 12px;
+}
+
+.param-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  min-width: 0;
+}
+
+.param-field > span {
+  font-size: 12px;
+  white-space: nowrap;
+  color: var(--text-secondary);
+}
+
+.param-field .ant-select,
+.param-field .ant-input-number {
+  width: 130px !important;
+  flex-shrink: 0;
+}
+
+/* dirty 提示条（UI-DESIGN.md §9：中性灰底 + 语义色左条） */
+.dirty-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--warning);
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
 }
 
 .collapse-card-header {
@@ -303,6 +418,11 @@ body {
 /* 零件表：数量列数字居中（antd InputNumber 默认左对齐） */
 .num-center .ant-input-number-input {
   text-align: center;
+}
+
+/* 零件表：数字列右对齐（Excel 式，UI-DESIGN.md §6.2） */
+.num-right .ant-input-number-input {
+  text-align: right;
 }
 
 /* 零件表：名称输入框靠左（去掉 antd 输入框默认左内边距，文字贴近单元格左缘） */

@@ -36,7 +36,6 @@ export function TopBar() {
   const renameProject = useProjectStore((s) => s.renameProject)
   const plan = usePlanStore((s) => s.plan)
   const status = usePlanStore((s) => s.status)
-  const editMode = usePlanStore((s) => s.editMode)
   const planPartNames = usePlanStore((s) => s.planPartNames)
   const planParts = usePlanStore((s) => s.planParts)
   const planIsHistory = usePlanStore((s) => s.planIsHistory)
@@ -202,14 +201,9 @@ export function TopBar() {
           <Dropdown menu={{ items: exportItems }} trigger={['click']}>
             <Button icon={<ExportOutlined />}>{t('workspace.export')}</Button>
           </Dropdown>
-          {plan && status === 'done' && !editMode && (
-            <Button
-              icon={<EditOutlined />}
-              onClick={() =>
-                planIsHistory ? continueFromHistory() : usePlanStore.getState().setEditMode(true)
-              }
-            >
-              {planIsHistory ? t('workspace.editFromHistory') : t('workspace.editParts')}
+          {plan && status === 'done' && planIsHistory && (
+            <Button icon={<EditOutlined />} onClick={() => continueFromHistory()}>
+              {t('workspace.editFromHistory')}
             </Button>
           )}
         </Space>

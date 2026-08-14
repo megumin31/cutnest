@@ -5,14 +5,13 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button, Segmented } from 'antd'
+import { Button } from 'antd'
 import { CloseOutlined } from '@ant-design/icons'
 import { usePlanStore } from '../features/cutting/planStore'
 import { useProjectStore } from '../features/projects/projectStore'
 import { useSettingsStore } from '../features/settings/settingsStore'
 import { usableArea } from '../domain/optimizer'
 import { CutDiagram } from './CutDiagram'
-import { HistoryPartList } from './HistoryPartList'
 import { partNamesOf } from './exportActions'
 import { formatLength } from '../domain/units'
 import type { SheetSpec } from '../domain/types'
@@ -24,12 +23,10 @@ export function SheetFlow() {
   const current = useProjectStore((s) => s.current)
   const unit = useSettingsStore((s) => s.settings.unit)
   const planPartNames = usePlanStore((s) => s.planPartNames)
-  const planParts = usePlanStore((s) => s.planParts)
-  const planIsHistory = usePlanStore((s) => s.planIsHistory)
   const selectedPartKey = usePlanStore((s) => s.selectedPartKey)
   const hoverPartKey = usePlanStore((s) => s.hoverPartKey)
+  const dirty = useProjectStore((s) => s.dirty)
   const [detailIndex, setDetailIndex] = useState<number | null>(null)
-  const [histView, setHistView] = useState<'cut' | 'parts'>('cut')
   const closeBtnRef = useRef<HTMLButtonElement | null>(null)
 
   // 单板大图 = 模态对话框：ESC 关闭 + 打开时焦点移入关闭按钮（最小模态契约）
@@ -47,8 +44,7 @@ export function SheetFlow() {
 
   const partNames = partNamesOf(current)
   // 名字展示优先排样快照（历史方案不随当前零件表漂移）
-  const nameOf = (id: string) =>
-    planParts?.find((p) => p.id === id)?.name ?? planPartNames?.[id] ?? partNames.get(id)
+  const nameOf = (id: string) => planPartNames?.[id] ?? partNames.get(id)
 
   // 编辑态：引导卡
   if (!plan || status !== 'done') {
@@ -69,38 +65,12 @@ export function SheetFlow() {
   // 每张板按自己的规格（plan.sheetLibrary + sheetSpecId）取可用区，与 plan.stats.utilization 口径一致
   const specOf = (specId: string): SheetSpec => plan.sheetLibrary.find((s) => s.id === specId) ?? plan.sheetLibrary[0]
 
-  // 历史方案模式：可在"裁切图 / 零件清单"间切换（普通计算结果仅裁切图）
-  if (planIsHistory && histView === 'parts') {
-    return (
-      <div>
-        <Segmented
-          size="small"
-          value={histView}
-          onChange={(v) => setHistView(v as 'cut' | 'parts')}
-          options={[
-            { value: 'cut', label: t('leftPanel.viewCut') },
-            { value: 'parts', label: t('leftPanel.viewParts') },
-          ]}
-          style={{ marginBottom: 12 }}
-        />
-        <HistoryPartList parts={planParts} partNames={planPartNames} sheetLibrary={plan.sheetLibrary} />
-      </div>
-    )
-  }
-
   return (
     <div>
-      {planIsHistory && (
-        <Segmented
-          size="small"
-          value={histView}
-          onChange={(v) => setHistView(v as 'cut' | 'parts')}
-          options={[
-            { value: 'cut', label: t('leftPanel.viewCut') },
-            { value: 'parts', label: t('leftPanel.viewParts') },
-          ]}
-          style={{ marginBottom: 12 }}
-        />
+      {dirty && (
+        <div className="dirty-banner" role="alert">
+          {t('workspace.dirtyHint')}
+        </div>
       )}
       <div
         style={{

@@ -7,7 +7,7 @@
 // @vitest-environment jsdom
 import 'fake-indexeddb/auto'
 import { describe, expect, it, beforeEach } from 'vitest'
-import { render, fireEvent, within } from '@testing-library/react'
+import { render, fireEvent, within, screen } from '@testing-library/react'
 import { ConfigProvider, App as AntApp } from 'antd'
 import { initI18n } from '../src/features/i18n'
 import { useProjectStore } from '../src/features/projects/projectStore'
@@ -99,7 +99,10 @@ describe('数量列输入（截断法，非四舍五入）', () => {
         </AntApp>
       </ConfigProvider>,
     )
-    fireEvent.click(within(container).getByText('批量粘贴'))
+    // 工具行已收进零件清单 ⋯ 菜单（v1.2 方向 D）：先开菜单再点「批量粘贴」
+    fireEvent.click(within(container).getByRole('button', { name: '零件清单' }))
+    const bulkItem = await screen.findByText('批量粘贴')
+    fireEvent.click(bulkItem)
     const modal = [...document.querySelectorAll('.ant-modal')].at(-1) as HTMLElement
     const textarea = within(modal).getByPlaceholderText(/每行一个零件/) as HTMLTextAreaElement
     fireEvent.change(textarea, { target: { value: '甲 100 50 2.9\n乙 100 50 0.4\n丙 100 50 0' } })
