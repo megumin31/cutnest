@@ -123,12 +123,12 @@ body {
 }
 
 .panel-title {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
 }
 
 .panel-sub {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-disabled);
   font-variant-numeric: tabular-nums;
 }
@@ -142,7 +142,8 @@ body {
 /* Excel 式网格表格（零件表/板材库统一形态）：灰底冻结表头 + 紧凑行 + 数字等宽 */
 .parts-table .ant-table-thead > tr > th {
   background: var(--table-header-bg);
-  font-size: 11px;
+  font-size: 12px;
+  font-weight: 500;
   padding-top: 2px;
   padding-bottom: 2px;
   position: sticky;
@@ -153,13 +154,21 @@ body {
 .parts-table .ant-table-tbody > tr > td {
   padding-top: 2px;
   padding-bottom: 2px;
+  font-size: 13px;
   font-variant-numeric: tabular-nums;
 }
 
 .parts-table .ant-table-tbody > tr > td.row-num-cell {
   background: var(--table-row-num-bg);
   color: var(--text-disabled);
-  font-size: 11px;
+  font-size: 12px;
+}
+
+/* 单元格内控件（Input/InputNumber/Select）字号与单元格文本统一 13px，避免编辑行与只读行参差 */
+.parts-table .ant-input-number-input,
+.parts-table .ant-input,
+.parts-table .ant-select-selection-item {
+  font-size: 13px;
 }
 
 /* 板材库表格：自然高度（规格少不滚动），超过 8 行时容器滚动兜底 */
