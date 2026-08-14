@@ -5,27 +5,17 @@
  */
 import { useTranslation } from 'react-i18next'
 import { useEffect, useState } from 'react'
-import { Button, Checkbox, Input, InputNumber, Modal, Segmented, Select, Switch, Table, Tooltip } from 'antd'
+import { Button, Checkbox, Input, InputNumber, Modal, Popconfirm, Segmented, Select, Switch, Table, Tooltip } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
-import { EditOutlined, PlusOutlined, SettingOutlined } from '@ant-design/icons'
+import { DeleteOutlined, PlusOutlined, SettingOutlined } from '@ant-design/icons'
 import { useProjectStore } from '../features/projects/projectStore'
 import { useSettingsStore } from '../features/settings/settingsStore'
 import { storage } from '../infra/storage'
 import { DEFAULT_SHEETS, DEFAULT_KERF } from '../domain/materials'
 import type { SheetSpec } from '../domain/types'
 
-interface SpecForm {
-  id?: string
-  name: string
-  length: number
-  width: number
-  price: number
-}
-
 /** 计算质量三档（搜索强度锚定：每零件迭代数，与零件数量无关） */
 export type Quality = 'fast' | 'standard' | 'fine'
-
-const EMPTY_FORM: SpecForm = { name: '', length: 2440, width: 1220, price: 98 }
 
 export function SheetConfigPanel() {
   const { t } = useTranslation()
@@ -35,8 +25,6 @@ export function SheetConfigPanel() {
   const pricing = useSettingsStore((s) => s.settings.pricing)
   const updatePricing = useSettingsStore((s) => s.updatePricing)
   const [customSheets, setCustomSheets] = useState<SheetSpec[]>([])
-  const [formOpen, setFormOpen] = useState(false)
-  const [form, setForm] = useState<SpecForm>(EMPTY_FORM)
   const [pricingOpen, setPricingOpen] = useState(false)
 
   const reloadMaterials = async () => {
@@ -65,40 +53,54 @@ export function SheetConfigPanel() {
     updateSheets(next)
   }
 
-  const openAdd = () => {
-    setForm(EMPTY_FORM)
-    setFormOpen(true)
+  /** 行内编辑（高频）：只写项目（projectStore 防抖持久化），不失焦不碰全局库 */
+  const patchSheet = (id: string, patch: Partial<SheetSpec>) => {
+    updateSheets(sheets.map((s) => (s.id === id ? { ...s, ...patch } : s)))
   }
 
-  const openEdit = (spec: SheetSpec) => {
-    setForm({ id: spec.id, name: spec.name, length: spec.length, width: spec.width, price: spec.price })
-    setFormOpen(true)
-  }
-
-  const onSaveSpec = async () => {
-    const { id, name, length, width, price } = form
-    const spec: SheetSpec = {
-      id: id ?? `mat-${Date.now()}`,
-      name: name.trim() || t('leftPanel.sheetDefaultName'),
-      length: Math.max(1, Math.round(length)),
-      width: Math.max(1, Math.round(width)),
-      price: Math.max(0, price),
+  /** 行内编辑提交（失焦）：项目写入 + 自定义规格同步全局库（内置规格仅项目覆盖，id 不变） */
+  const commitSheet = (id: string, patch: Partial<SheetSpec>) => {
+    patchSheet(id, patch)
+    const spec = sheets.find((s) => s.id === id)
+    if (spec && customSheets.some((c) => c.id === id)) {
+      const next = { ...spec, ...patch }
+      next.name = next.name.trim() || t('leftPanel.sheetDefaultName')
+      void storage.saveMaterial(next)
+      void reloadMaterials()
     }
-    if (!id) {
-      // 添加：写入全局自定义库 + 自动勾选当前项目
-      await storage.saveMaterial(spec)
-      updateSheets([...sheets, spec])
-    } else {
-      // 编辑：自定义条目同步全局库；内置条目仅当前项目覆盖（id 不变）
-      if (customSheets.some((s) => s.id === id)) await storage.saveMaterial(spec)
-      updateSheets(sheets.map((s) => (s.id === id ? spec : s)))
-    }
-    await reloadMaterials()
-    setFormOpen(false)
   }
 
-  /** 板材库网格表格：勾选 | 名称 | 尺寸 | 单价 | 编辑（价格功能关闭时不显示单价） */
+  /** 添加 = 直接追加一行（勾选即启用），行内编辑失焦时写入全局库 */
+  const addSheet = () => {
+    updateSheets([
+      ...sheets,
+      { id: `mat-${Date.now()}`, name: '', length: 2440, width: 1220, price: 98 },
+    ])
+  }
+
+  /** 删除：从项目移除；自定义规格同步删全局库；最后一种规格禁止删除（≥1 约束） */
+  const removeSheet = (id: string) => {
+    if (sheets.length <= 1) return
+    updateSheets(sheets.filter((s) => s.id !== id))
+    if (customSheets.some((c) => c.id === id)) {
+      void storage.deleteMaterial(id)
+      void reloadMaterials()
+    }
+  }
+
+  /** 板材库网格表格（与零件表同形态）：行号 | 勾选 | 名称 | 长 | 宽 | 单价 | 删除，单元格即输入框 */
   const sheetColumns: ColumnsType<SheetSpec> = [
+    {
+      title: '#',
+      key: 'row',
+      width: 24,
+      onCell: () => ({ className: 'row-num-cell' }),
+      render: (_v, _r, index) => (
+        <span style={{ color: 'var(--text-disabled)', fontSize: 12, fontVariantNumeric: 'tabular-nums' }}>
+          {index + 1}
+        </span>
+      ),
+    },
     {
       title: '☑',
       key: 'checked',
@@ -115,40 +117,95 @@ export function SheetConfigPanel() {
       title: t('leftPanel.name'),
       dataIndex: 'name',
       key: 'name',
-      width: 150,
-      render: (v: string) => <span style={{ fontWeight: 500 }}>{v}</span>,
+      width: 160,
+      render: (v: string, s) => (
+        <Input
+          size="small"
+          variant="borderless"
+          className="name-input"
+          value={v}
+          placeholder={t('leftPanel.sheetDefaultName')}
+          onChange={(e) => patchSheet(s.id, { name: e.target.value })}
+          onBlur={() => commitSheet(s.id, {})}
+        />
+      ),
     },
     {
-      title: t('leftPanel.sheetSize'),
+      title: t('leftPanel.length'),
       dataIndex: 'length',
-      key: 'size',
-      width: 130,
-      render: (_v, s) => (
-        <span style={{ fontVariantNumeric: 'tabular-nums' }}>
-          {s.length}×{s.width}
-        </span>
+      key: 'length',
+      width: 64,
+      render: (v: number, s) => (
+        <InputNumber
+          size="small"
+          variant="borderless"
+          min={1}
+          controls={false}
+          value={v}
+          style={{ width: '100%' }}
+          onChange={(x) => patchSheet(s.id, { length: Math.max(1, Math.round(x ?? 1)) })}
+          onBlur={() => commitSheet(s.id, {})}
+        />
+      ),
+    },
+    {
+      title: t('leftPanel.width'),
+      dataIndex: 'width',
+      key: 'width',
+      width: 64,
+      render: (v: number, s) => (
+        <InputNumber
+          size="small"
+          variant="borderless"
+          min={1}
+          controls={false}
+          value={v}
+          style={{ width: '100%' }}
+          onChange={(x) => patchSheet(s.id, { width: Math.max(1, Math.round(x ?? 1)) })}
+          onBlur={() => commitSheet(s.id, {})}
+        />
       ),
     },
     {
       title: t('leftPanel.unitPrice'),
       key: 'price',
-      width: 90,
-      render: (_v, s) => (pricing.enabled ? <span>¥{s.price}</span> : <span style={{ color: 'var(--text-disabled)' }}>—</span>),
+      width: 100,
+      render: (_v, s) =>
+        pricing.enabled ? (
+          <InputNumber
+            size="small"
+            variant="borderless"
+            min={0}
+            controls={false}
+            value={s.price}
+            style={{ width: '100%' }}
+            onChange={(x) => patchSheet(s.id, { price: Math.max(0, x ?? 0) })}
+            onBlur={() => commitSheet(s.id, {})}
+          />
+        ) : (
+          <span style={{ color: 'var(--text-disabled)' }}>—</span>
+        ),
     },
     {
       title: '',
-      key: 'edit',
-      width: 40,
+      key: 'remove',
+      width: 36,
       render: (_v, s) => (
-        <Tooltip title={t('leftPanel.editSheet')}>
+        <Popconfirm
+          title={t('leftPanel.confirmRemoveSheet', { name: s.name })}
+          okText={t('common.delete')}
+          cancelText={t('common.cancel')}
+          onConfirm={() => removeSheet(s.id)}
+        >
           <Button
-            size="small"
             type="text"
-            icon={<EditOutlined />}
-            aria-label={t('leftPanel.editSheet')}
-            onClick={() => openEdit(s)}
+            size="small"
+            danger
+            icon={<DeleteOutlined />}
+            disabled={sheets.length <= 1}
+            aria-label={t('leftPanel.remove')}
           />
-        </Tooltip>
+        </Popconfirm>
       ),
     },
   ]
@@ -218,7 +275,7 @@ export function SheetConfigPanel() {
             {t('leftPanel.sheetsSelected', { n: sheets.length, m: sheetOptions.length })}
           </span>
           <div style={{ flex: 1 }} />
-          <Button type="text" size="small" icon={<PlusOutlined />} onClick={openAdd}>
+          <Button type="text" size="small" icon={<PlusOutlined />} onClick={addSheet}>
             {t('leftPanel.addSheet')}
           </Button>
         </div>
@@ -257,48 +314,6 @@ export function SheetConfigPanel() {
           ))}
         </div>
       </div>
-
-      {/* 板材规格编辑/添加 */}
-      <Modal
-        open={formOpen}
-        title={form.id ? t('leftPanel.editSheet') : t('leftPanel.addSheet')}
-        onOk={() => void onSaveSpec()}
-        onCancel={() => setFormOpen(false)}
-        okText={t('common.save')}
-        cancelText={t('common.cancel')}
-      >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 4 }}>
-          <Input
-            value={form.name}
-            placeholder={t('leftPanel.sheetName')}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
-          />
-          <div style={{ display: 'flex', gap: 10 }}>
-            <InputNumber
-              style={{ flex: 1 }}
-              min={1}
-              value={form.length}
-              placeholder={t('leftPanel.sheetLength')}
-              onChange={(v) => setForm({ ...form, length: v ?? 0 })}
-            />
-            <InputNumber
-              style={{ flex: 1 }}
-              min={1}
-              value={form.width}
-              placeholder={t('leftPanel.sheetWidth')}
-              onChange={(v) => setForm({ ...form, width: v ?? 0 })}
-            />
-          </div>
-          <InputNumber
-            style={{ width: '100%' }}
-            min={0}
-            value={form.price}
-            placeholder={t('leftPanel.sheetPrice')}
-            prefix="¥"
-            onChange={(v) => setForm({ ...form, price: v ?? 0 })}
-          />
-        </div>
-      </Modal>
 
       {/* 价格核算（全局设置） */}
       <Modal

@@ -83,6 +83,7 @@ export const zh = {
     sheetsSelected: '已选 {{n}}/{{m}}',
     sheetSize: '尺寸',
     unitPrice: '单价',
+    confirmRemoveSheet: '删除板材「{{name}}」？该规格将从项目与自定义库中移除',
     sheetLibraryHint: '勾选可用板材（至少 1 种）',
     addSheet: '添加板材',
     editSheet: '编辑板材',

@@ -83,6 +83,7 @@ export const en = {
     sheetsSelected: '{{n}}/{{m}} selected',
     sheetSize: 'Size',
     unitPrice: 'Price',
+    confirmRemoveSheet: 'Remove sheet "{{name}}"? It will be removed from this project and custom library',
     sheetLibraryHint: 'Check usable sheets (at least 1)',
     addSheet: 'Add Sheet',
     editSheet: 'Edit Sheet',
