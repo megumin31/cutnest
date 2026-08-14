@@ -4,10 +4,12 @@
  * 工艺参数：普通表单（双列紧凑，不表格化），⚙ 设置入口 = 价格核算弹窗（全局配置）。
  */
 import { useTranslation } from 'react-i18next'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import type { TdHTMLAttributes } from 'react'
 import { Button, Checkbox, Input, InputNumber, Modal, Popconfirm, Segmented, Select, Switch, Table, Tooltip } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { DeleteOutlined, PlusOutlined, SettingOutlined } from '@ant-design/icons'
+import { handleGridKeyDown } from './gridKeyboard'
 import { useProjectStore } from '../features/projects/projectStore'
 import { useSettingsStore } from '../features/settings/settingsStore'
 import { storage } from '../infra/storage'
@@ -26,6 +28,15 @@ export function SheetConfigPanel() {
   const updatePricing = useSettingsStore((s) => s.updatePricing)
   const [customSheets, setCustomSheets] = useState<SheetSpec[]>([])
   const [pricingOpen, setPricingOpen] = useState(false)
+
+  // Excel 式键盘漫游：方向键移动焦点、末行 ↓ 新增一行
+  const gridRef = useRef<HTMLDivElement>(null)
+  const KEY_COLS = ['checked', 'name', 'length', 'width', 'price', 'remove']
+  const cellData = (row: number | undefined, col: string) =>
+    ({ 'data-cell': '', 'data-row': row ?? 0, 'data-col': col }) as TdHTMLAttributes<HTMLTableCellElement>
+  const onGridKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    handleGridKeyDown(e, gridRef, KEY_COLS, sheetOptions.length, addSheet)
+  }
 
   const reloadMaterials = async () => {
     setCustomSheets(await storage.listMaterials())
@@ -94,7 +105,7 @@ export function SheetConfigPanel() {
       title: '#',
       key: 'row',
       width: 24,
-      onCell: () => ({ className: 'row-num-cell' }),
+      onCell: (_v, index) => ({ ...cellData(index, 'row'), className: 'row-num-cell' }),
       render: (_v, _r, index) => (
         <span style={{ color: 'var(--text-disabled)', fontSize: 12, fontVariantNumeric: 'tabular-nums' }}>
           {index + 1}
@@ -105,6 +116,7 @@ export function SheetConfigPanel() {
       title: '☑',
       key: 'checked',
       width: 40,
+      onCell: (_v, index) => cellData(index, 'checked'),
       render: (_v, s) => (
         <Checkbox
           checked={sheets.some((x) => x.id === s.id)}
@@ -118,6 +130,7 @@ export function SheetConfigPanel() {
       dataIndex: 'name',
       key: 'name',
       width: 160,
+      onCell: (_v, index) => cellData(index, 'name'),
       render: (v: string, s) => (
         <Input
           size="small"
@@ -135,6 +148,7 @@ export function SheetConfigPanel() {
       dataIndex: 'length',
       key: 'length',
       width: 64,
+      onCell: (_v, index) => cellData(index, 'length'),
       render: (v: number, s) => (
         <InputNumber
           size="small"
@@ -153,6 +167,7 @@ export function SheetConfigPanel() {
       dataIndex: 'width',
       key: 'width',
       width: 64,
+      onCell: (_v, index) => cellData(index, 'width'),
       render: (v: number, s) => (
         <InputNumber
           size="small"
@@ -170,6 +185,7 @@ export function SheetConfigPanel() {
       title: t('leftPanel.unitPrice'),
       key: 'price',
       width: 100,
+      onCell: (_v, index) => cellData(index, 'price'),
       render: (_v, s) =>
         pricing.enabled ? (
           <InputNumber
@@ -190,6 +206,7 @@ export function SheetConfigPanel() {
       title: '',
       key: 'remove',
       width: 36,
+      onCell: (_v, index) => cellData(index, 'remove'),
       render: (_v, s) => (
         <Popconfirm
           title={t('leftPanel.confirmRemoveSheet', { name: s.name })}
@@ -279,15 +296,17 @@ export function SheetConfigPanel() {
             {t('leftPanel.addSheet')}
           </Button>
         </div>
-        <Table<SheetSpec>
-          className="parts-table"
-          size="small"
-          rowKey="id"
-          columns={sheetColumns}
-          dataSource={sheetOptions}
-          pagination={false}
-          bordered
-        />
+        <div ref={gridRef} onKeyDownCapture={onGridKeyDown} className="sheets-table-wrap">
+          <Table<SheetSpec>
+            className="parts-table"
+            size="small"
+            rowKey="id"
+            columns={sheetColumns}
+            dataSource={sheetOptions}
+            pagination={false}
+            bordered
+          />
+        </div>
       </div>
 
       {/* 工艺参数：普通表单 */}

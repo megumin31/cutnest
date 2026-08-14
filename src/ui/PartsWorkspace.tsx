@@ -9,6 +9,8 @@ import { useTranslation } from 'react-i18next'
 import { App as AntApp, Button, Checkbox, Dropdown, Input, InputNumber, Modal, Popconfirm, Select, Table, Tag, Tooltip } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import type { MenuProps } from 'antd'
+import type { TdHTMLAttributes } from 'react'
+import { handleGridKeyDown } from './gridKeyboard'
 import {
   CameraOutlined,
   DeleteOutlined,
@@ -39,6 +41,16 @@ export function PartsWorkspace() {
   const planIsHistory = usePlanStore((s) => s.planIsHistory)
   const planParts = usePlanStore((s) => s.planParts)
   const plan = usePlanStore((s) => s.plan)
+
+  // Excel 式键盘漫游：方向键移动焦点、末行 ↓ 新增一行（只读历史模式禁用）
+  const gridRef = useRef<HTMLDivElement>(null)
+  const KEY_COLS = ['name', 'length', 'width', 'quantity', 'grain', 'sheetId', 'edgeBand', 'remove']
+  const cellData = (row: number | undefined, col: string) =>
+    ({ 'data-cell': '', 'data-row': row ?? 0, 'data-col': col }) as TdHTMLAttributes<HTMLTableCellElement>
+  const onGridKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (readonly) return
+    handleGridKeyDown(e, gridRef, KEY_COLS, parts.length, onAddPart)
+  }
 
   const [bulkOpen, setBulkOpen] = useState(false)
   const [bulkText, setBulkText] = useState('')
@@ -166,7 +178,7 @@ export function PartsWorkspace() {
       title: '#',
       key: 'row',
       width: 24,
-      onCell: () => ({ className: 'row-num-cell' }),
+      onCell: (_v, index) => ({ ...cellData(index, 'row'), className: 'row-num-cell' }),
       render: (_v, _r, index) => (
         <span style={{ color: 'var(--text-disabled)', fontSize: 11, fontVariantNumeric: 'tabular-nums' }}>
           {index + 1}
@@ -178,6 +190,7 @@ export function PartsWorkspace() {
       dataIndex: 'name',
       key: 'name',
       width: 120,
+      onCell: (_v, index) => cellData(index, 'name'),
       render: (v: string, r) =>
         readonly ? (
           cellText(v || '—')
@@ -197,6 +210,7 @@ export function PartsWorkspace() {
       dataIndex: 'length',
       key: 'length',
       width: 60,
+      onCell: (_v, index) => cellData(index, 'length'),
       render: (v: number, r) =>
         readonly ? (
           cellText(v > 0 ? v : '—')
@@ -218,6 +232,7 @@ export function PartsWorkspace() {
       dataIndex: 'width',
       key: 'width',
       width: 60,
+      onCell: (_v, index) => cellData(index, 'width'),
       render: (v: number, r) =>
         readonly ? (
           cellText(v > 0 ? v : '—')
@@ -239,6 +254,7 @@ export function PartsWorkspace() {
       dataIndex: 'quantity',
       key: 'quantity',
       width: 48,
+      onCell: (_v, index) => cellData(index, 'quantity'),
       render: (v: number, r) =>
         readonly ? (
           cellText(v)
@@ -272,6 +288,7 @@ export function PartsWorkspace() {
       dataIndex: 'grain',
       key: 'grain',
       width: 44,
+      onCell: (_v, index) => cellData(index, 'grain'),
       render: (v: 'alongLength' | 'any' | undefined, r) =>
         readonly ? (
           cellText(v === 'any' ? '✓' : '')
@@ -290,6 +307,7 @@ export function PartsWorkspace() {
       dataIndex: 'sheetId',
       key: 'sheetId',
       width: 76,
+      onCell: (_v, index) => cellData(index, 'sheetId'),
       render: (v: string | undefined, r) =>
         readonly ? (
           cellText(sheetNameOf(v))
@@ -310,6 +328,7 @@ export function PartsWorkspace() {
       dataIndex: 'edgeBand',
       key: 'edgeBand',
       width: 64,
+      onCell: (_v, index) => cellData(index, 'edgeBand'),
       render: (v: ('L' | 'R' | 'T' | 'B')[] | undefined, r) =>
         readonly ? (
           cellText((v ?? []).join('/') || '—')
@@ -335,6 +354,7 @@ export function PartsWorkspace() {
       title: '',
       key: 'actions',
       width: 32,
+      onCell: (_v, index) => cellData(index, 'remove'),
       render: (_, r) =>
         readonly ? null : (
           <Popconfirm
@@ -384,7 +404,7 @@ export function PartsWorkspace() {
       </div>
 
       {/* Excel 式网格表格 */}
-      <div className="parts-table-wrap">
+      <div className="parts-table-wrap" ref={gridRef} onKeyDownCapture={onGridKeyDown}>
         <Table<Part>
           className="parts-table"
           size="small"

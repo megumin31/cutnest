@@ -164,6 +164,11 @@ body {
   font-size: 12px;
 }
 
+/* 键盘漫游焦点框（Excel 式）：聚焦单元格内控件时整格强调色描边 */
+.parts-table .ant-table-tbody > tr > td:focus-within {
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+
 /* 单元格内控件（Input/InputNumber/Select）字号与单元格文本统一 13px，避免编辑行与只读行参差 */
 .parts-table .ant-input-number-input,
 .parts-table .ant-input,
